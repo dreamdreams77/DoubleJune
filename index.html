@@ -378,6 +378,8 @@ const PERKS=[
   {id:"wind",name:"Second Wind",tag:"Defence",desc:"Once per run, survive a fatal hit with 1 heart."},
   {id:"tuned",name:"Laser Tuned",tag:"Defence",desc:"Laser gates stay off much longer."},
   {id:"pierce",name:"Piercing Darts",tag:"Gadget",desc:"Darts fly through enemies. Needs the Dart Pen."},
+  {id:"chain",name:"Chain Reaction",tag:"Chips",desc:"Airborne takedown chains pay +1 more chip per link."},
+  {id:"quick",name:"Quick Draw",tag:"Gadget",desc:"Darts fire twice as fast. Needs the Dart Pen."},
   {id:"informant",name:"Informant Network",tag:"Economy",desc:"Every hex payout from the dice gives 1 extra."},
   {id:"lucky",name:"Lucky Seven",tag:"Economy",desc:"A rolled 7 pays you 10 chips instead of the mole stealing."},
   {id:"counter",name:"Card Counter",tag:"Casino",desc:"See the dealer's hidden blackjack card. Slot pairs pay 9."},
@@ -679,7 +681,7 @@ function genLevel(type,d,seed){
   const setH=(c,v)=>{if(c>=0&&c<MAXW)h[c]=v};
   const setT=(r,c,v)=>{if(r>=0&&r<ROWS&&c>=0&&c<MAXW)tiles[r][c]=v};
   const chip=(c,r)=>E.chips.push({x:c*TS+4,y:r*TS+4,taken:false});
-  const goon=(c,g)=>E.goons.push({x:c*TS+2,y:g*TS-14,w:12,h:14,vx:(rng()<0.5?-1:1)*(0.45+d*0.06),vy:0,alive:true,dead:0});
+  const goon=(c,g,tough)=>E.goons.push({x:c*TS+2,y:g*TS-14,w:12,h:14,vx:(rng()<0.5?-1:1)*(0.45+d*0.06),vy:0,alive:true,dead:0,armor:(tough&&d>=2&&rng()<0.18+d*0.04)?1:0,stun:0});
   const goonP=0.28+d*0.06+(type==="intel"?0.18:0)+(type==="vault"?0.1:0);
   const chipBoost=type==="gold"?1.6:1;
   const camP=0.14+d*0.04+(type==="intel"?0.14:0);
@@ -709,7 +711,7 @@ function genLevel(type,d,seed){
     }else if(seg==="flat"){
       const n=R(5,9);for(let i=0;i<n;i++)setH(x+i,g);
       for(let i=1;i<n-1;i++)if(rng()<0.45*chipBoost)chip(x+i,g-1);
-      if(rng()<goonP*1.4)goon(x+Math.floor(n/2),g);if(rng()<camP)cam(x+1);x+=n;
+      if(rng()<goonP*1.4)goon(x+Math.floor(n/2),g,true);if(rng()<camP)cam(x+1);x+=n;
     }else if(seg==="laser"){
       const n=R(5,7);for(let i=0;i<n;i++)setH(x+i,g);
       E.lasers.push({x:(x+Math.floor(n/2))*TS+6,bot:g*TS,phase:R(0,150),on:80+d*4,off:75-d*3});if(rng()<camP*0.6)cam(x);x+=n;
@@ -810,13 +812,18 @@ function burst(x,y,col,n=8,sp=3){for(let k=0;k<n;k++)L.parts.push({x,y,vx:(Math.
 function dust(x,y,n=5){for(let k=0;k<n;k++)L.parts.push({x:x+(Math.random()-.5)*8,y,vx:(Math.random()-.5)*1.2,vy:-Math.random()*0.6,life:18,col:"rgba(245,234,210,.7)",g:0})}
 function pop(x,y,text,col){L.pops.push({x,y,text,life:44,col:col||"#f3d07c"})}
 function addChips(n,x,y){run.chips+=n;run.earned+=n;L.got+=n;$("#lvlChips").textContent="CHIPS +"+L.got;hud();if(x!==undefined)pop(x,y,"+"+n)}
-const takedown=n=>{L.kills++;return n+(has("pickpocket")?2:0)};
+const takedown=n=>{L.kills++;L.combo=(L.combo||0)+1;const link=Math.min(L.combo-1,5);if(link>0)pop(L.p.x-6,L.p.y-16,"x"+L.combo+" CHAIN","#ffcf5a");return n+link*(has("chain")?2:1)+(has("pickpocket")?2:0)};
+// returns true if the goon died; armored goons lose their plating and are stunned first
+function hitGoon(g){
+  if(g.armor>0){g.armor=0;g.big=true;g.stun=45;L.shake=3;burst(g.x+6,g.y+4,"#c9ced6",8);pop(g.x-4,g.y-8,"ARMOR OFF","#c9ced6");addChips(1,g.x,g.y-14);return false}
+  g.alive=false;burst(g.x+6,g.y+7,"#b8c4b0",10);addChips(takedown(g.big?4:2),g.x,g.y-6);return true;
+}
 function hurt(pit){
   const p=L.p;if(L.dying||L.exiting)return;if(!pit&&p.inv>0)return;
   if(L.cover>0){L.cover=0;burst(p.x+5,p.y+7,"#97a9ff",14);pop(p.x-6,p.y-6,"COVER BLOWN","#97a9ff")}
   else if(run.shield>0){run.shield--;burst(p.x+5,p.y+7,"#3cc4b2",14)}
   else{run.hearts--;L.flash=16}
-  hud();p.inv=90;L.shake=12;L.freeze=5;
+  L.combo=0;hud();p.inv=90;L.shake=12;L.freeze=5;
   if(run.hearts<=0){
     if(has("wind")&&!run.windUsed){run.windUsed=true;run.hearts=1;hud();pop(p.x-10,p.y-8,"SECOND WIND","#3cc4b2");burst(p.x+5,p.y+7,"#3cc4b2",20)}
     else{L.dying=1;p.vy=-5;p.vx=0;L.shake=14;burst(p.x+5,p.y+7,"#e04b63",16,3);return}
@@ -851,6 +858,7 @@ function step(){
   // land on moving platforms
   p.ride=null;
   if(p.vy>=0)for(const m of L.E.plats){if(p.x+p.w>m.x+1&&p.x<m.x+m.w-1&&prevBottom<=m.y+1&&p.y+p.h>=m.y){p.y=m.y-p.h;p.vy=0;p.onGround=true;p.ride=m;break}}
+  if(p.onGround)L.combo=0;
   if(p.onGround&&!wasGround&&fallV>2){p.sx=1.25;p.sy=0.75;dust(p.x+5,p.y+14,6)}
   if(p.onGround){p.jumpsUsed=0;if(!p.ride&&solidAt(p.x+1,p.y+p.h+1)&&solidAt(p.x+p.w-1,p.y+p.h+1)){L.safe={x:p.x,y:p.y};if(L.f%6===0){L.hist.push({x:p.x,y:p.y});if(L.hist.length>16)L.hist.shift()}}
     if(Math.abs(p.vx)>1.6&&L.f%9===0)dust(p.x+5,p.y+14,2)}
@@ -858,18 +866,19 @@ function step(){
   if(p.bonk){for(const c of p.bonk.cs){if(p.bonk.r>=0&&c>=0&&c<L.W&&L.tiles[p.bonk.r][c]===3){L.tiles[p.bonk.r][c]=4;paintTile(c,p.bonk.r);addChips(has("safecracker")?10:5,c*TS+4,p.bonk.r*TS-6);burst(c*TS+8,p.bonk.r*TS,"#f3d07c",12);L.shake=4;break}}}
   if(p.inv>0)p.inv--;if(p.cool>0)p.cool--;
   p.anim+=Math.abs(p.vx)*0.11;
-  if(keys.firePressed){keys.firePressed=false;if(G.pen&&p.cool<=0){L.darts.push({x:p.x+(p.face>0?p.w:-4),y:p.y+7,w:5,h:2,vx:p.face*5,life:50});p.cool=16}else if(!G.pen&&!L.penHint){L.penHint=1;pop(p.x-4,p.y-6,"NO PEN")}}
+  if(keys.firePressed){keys.firePressed=false;if(G.pen&&p.cool<=0){L.darts.push({x:p.x+(p.face>0?p.w:-4),y:p.y+7,w:5,h:2,vx:p.face*5,life:50});p.cool=has("quick")?8:16}else if(!G.pen&&!L.penHint){L.penHint=1;pop(p.x-4,p.y-6,"NO PEN")}}
   if(p.y>ROWS*TS+16){hurt(true);if(!running)return}
   // goons
   for(const g of L.E.goons){
     if(!g.alive){g.dead++;continue}
     if(Math.abs(g.x-p.x)>360)continue;
-    const pv=g.vx;g.vy=Math.min(g.vy+0.32,6);moveBody(g);
-    if(g.hitWall)g.vx=-pv;else if(g.onGround){const ax2=pv>0?g.x+g.w+1:g.x-1;g.vx=solidAt(ax2,g.y+g.h+2)?pv:-pv}
+    const stunned=g.stun>0;if(stunned)g.stun--;
+    const pv=g.vx;if(stunned)g.vx=0;g.vy=Math.min(g.vy+0.32,6);moveBody(g);
+    if(stunned)g.vx=pv;else if(g.hitWall)g.vx=-pv;else if(g.onGround){const ax2=pv>0?g.x+g.w+1:g.x-1;g.vx=solidAt(ax2,g.y+g.h+2)?pv:-pv}
     if(g.y>ROWS*TS+40)g.alive=false;
     if(overlap(p,g)){
-      if(p.vy>0&&p.y+p.h-g.y<10){g.alive=false;p.vy=keys.jump?-6:-4;p.sx=1.2;p.sy=0.8;L.freeze=3;burst(g.x+6,g.y+7,"#b8c4b0",10);addChips(takedown(2),g.x,g.y-6)}
-      else hurt(false);
+      if(p.vy>0&&p.y+p.h-g.y<10){p.vy=keys.jump?-6:-4;p.sx=1.2;p.sy=0.8;L.freeze=3;hitGoon(g)}
+      else if(!stunned)hurt(false);
     }
   }
   for(const dr of L.E.drones){
@@ -931,7 +940,7 @@ function step(){
     dt.x+=dt.vx;dt.life--;
     if(solidAt(dt.x+2,dt.y))dt.life=0;
     const hit=()=>{if(!has("pierce"))dt.life=0};
-    for(const g of L.E.goons)if(g.alive&&overlap(dt,g)){g.alive=false;hit();burst(g.x+6,g.y+7,"#b8c4b0");addChips(takedown(2),g.x,g.y-6)}
+    for(const g of L.E.goons)if(g.alive&&overlap(dt,g)){hit();hitGoon(g)}
     for(const dr of L.E.drones)if(dr.alive&&overlap(dt,dr)){dr.alive=false;hit();burst(dr.x+7,dr.y+4,"#e04b63");addChips(takedown(3),dr.x,dr.y-6)}
     for(const t of L.E.turrets)if(t.alive&&overlap(dt,t)){t.alive=false;hit();burst(t.x+6,t.y+5,"#ffcf5a");addChips(takedown(3),t.x,t.y-6)}
     for(const c of L.E.cams)if(c.alive&&overlap(dt,c)){c.alive=false;dt.life=0;burst(c.x+5,c.y+3,"#c9ced6",8)}
@@ -1217,6 +1226,8 @@ function draw(){
     if(!g.alive){if(g.dead<20&&g.y<ROWS*TS){blit(spr("g0",GOON[0],PAL_G),x,y,g.vx<0,1.3,0.35)}continue}
     ctx.fillStyle="rgba(0,0,0,.25)";ctx.fillRect(x+1,y+13,10,2);
     blit(spr("g"+(Math.floor(L.f/8)%2),GOON[Math.floor(L.f/8)%2],PAL_G),x,y,g.vx<0);
+    if(g.armor>0){ctx.fillStyle="#c9ced6";ctx.fillRect(x+1,y+1,10,2);ctx.fillRect(x+1,y+3,2,6);ctx.fillRect(x+9,y+3,2,6);ctx.fillStyle="#6b7480";ctx.fillRect(x+1,y+8,10,1);ctx.fillStyle="#fff";ctx.fillRect(x+3,y+1,3,1)}
+    if(g.stun>0&&L.f%6<3){ctx.fillStyle="#ffcf5a";ctx.fillRect(x+2,y-4,2,2);ctx.fillRect(x+8,y-4,2,2)}
     if(g.alerted){ctx.fillStyle="#e04b63";ctx.fillRect(x+9,y-9,2,4);ctx.fillRect(x+9,y-4,2,1)}
   }
   for(const dr of L.E.drones){if(!dr.alive)continue;const x=Math.round(dr.x-cx),y=Math.round(dr.y);if(x<-20||x>VW+20)continue;

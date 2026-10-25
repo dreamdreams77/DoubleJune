@@ -26,6 +26,8 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 | Pause | P or Esc | Pause button |
 
 - **Goons** (walking bots): stomp them for 2 chips.
+- **Armored goons** (steel helmets, from threat 2): the first stomp or dart knocks the armor off and stuns them, the second kills for 4 chips.
+- **Chains**: take down enemies one after another without touching the ground and each link pays 1 more chip (up to +5). Landing or getting hit resets the chain.
 - **Drones**: stomp or dart them for 3 chips.
 - **Turrets**: fire slow shots along the ground. Stomp or dart them for 3 chips.
 - **Laser gates**: they flicker before switching on. Time your crossing.
@@ -73,6 +75,8 @@ After each cleared mission, pick one of three:
 | Featherweight | Higher jump |
 | Safecracker | Safes pay 10 |
 | Pickpocket | +2 chips per takedown |
+| Chain Reaction | Chain links pay +1 more chip each |
+| Quick Draw | Darts fire twice as fast |
 | Deep Cover | Free shield at the start of each mission |
 | Second Wind | Survive one fatal hit per run |
 | Laser Tuned | Lasers stay off longer |
