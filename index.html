@@ -666,6 +666,7 @@ function jesperSprite(pose,boots){
   const gold=rankOf(meta.xp)>=5;
   return spr("j"+pose+boots+gold,[...J_UP,arm,...J_LEG[pose]],gold?(boots?PAL_JGB:PAL_JG):(boots?PAL_JB:PAL_J));
 }
+const PAL_OB={...PAL_J,t:"#2a0a14",T:"#5a1426",h:"#0b0b0f",H:"#222230",r:"#7fd8ff",G:"#ff5a76"};
 const GOON=[
 [".....rr.....",".....tt.....","..mmmmmmmm..",".mMMMMMMMMm.",".mMvvvvvvMm.",".mMvvvveeMm.",".mMMMMMMMMm.",".mmmmmmmmmm.","..dmmmmmmd..","..dMMMMMMd..","..dmmmmmmd..","...dd..dd...","...dd..dd...","..ddd..ddd.."],
 [".....rr.....",".....tt.....","..mmmmmmmm..",".mMMMMMMMMm.",".mMvvvvvvMm.",".mMvvvveeMm.",".mMMMMMMMMm.",".mmmmmmmmmm.","..dmmmmmmd..","..dMMMMMMd..","..dmmmmmmd..","..dd....dd..","..dd....dd..",".ddd....ddd."]];
@@ -689,7 +690,7 @@ const THEMES={
   vault:{fg:"#0a0703",fog:"rgba(217,164,65,.08)",sky1:"#0a0704",sky2:"#43300f",far:"#35260d",city:"#2a1d0a",win:"#f3d07c",top:"#d9a441",trim:"#f3d07c",body:"#4a3516",line:"#2c200c",plat:"#7e6028",mid:"#1d1408",weather:"dust",moon:"#d9a441",haze:"217,164,65",dark:"rgba(8,5,0,.46)"}
 };
 let L=null;
-function genLevel(type,d,seed,mod){
+function genLevel(type,d,seed,mod,raid){
   const rng=mulberry32(seed), R=(a,b)=>a+Math.floor(rng()*(b-a+1));
   const target=96+d*14+(type==="vault"?20:0), MAXW=target+60;
   const h=new Array(MAXW).fill(9), tiles=Array.from({length:ROWS},()=>new Uint8Array(MAXW));
@@ -766,7 +767,9 @@ function genLevel(type,d,seed,mod){
   // boss
   let boss=null;
   if(type==="vault")boss={x:(Wf-14)*TS,y:g*TS-34,w:24,h:34,vx:0,vy:0,hp:run.heat>=5?12:8,max:run.heat>=5?12:8,inv:0,cd:90,jcd:160,alive:true,face:-1,minX:arenaX+16,maxX:(Wf-7)*TS,onGround:false,hitWall:false,dead:0};
-  return {W:Wf,tiles:T,E,boss,exitX:(Wf-5)*TS,exitY:g*TS,arenaX,par:Math.ceil(Wf*TS/2.1/60*2),chipTotal:E.chips.length};
+  let agent=null;
+  if(raid&&type!=="vault")agent={x:(Wf-10)*TS,y:g*TS-14,w:10,h:14,vx:0,vy:0,hp:2,inv:0,cd:60,stun:0,face:-1,alive:true,onGround:false,hitWall:false,dead:0,minX:arenaX,maxX:(Wf-7)*TS};
+  return {W:Wf,agent,tiles:T,E,boss,exitX:(Wf-5)*TS,exitY:g*TS,arenaX,par:Math.ceil(Wf*TS/2.1/60*2),chipTotal:E.chips.length};
 }
 
 /* ---------- level runtime ---------- */
@@ -803,7 +806,7 @@ function startLevel(i){
   clearKeys();
   const type=i===6?"vault":run.hexes[i].type, d=threatOf(i);
   const mod=i===6?null:run.hexes[i].mod||null;
-  const lv=genLevel(type,d,(run.seed^((i+1)*7919)^(run.missions*104729))>>>0,mod);
+  const lv=genLevel(type,d,(run.seed^((i+1)*7919)^(run.missions*104729))>>>0,mod,i===6?false:run.hexes[i].rival);
   const wx=[];for(let k=0;k<44;k++)wx.push({x:Math.random()*VW,y:Math.random()*VH,s:Math.random()});
   L={...lv,type,d,mod,crumb:new Map(),regrow:[],hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
     p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false,dashT:0,dashCd:0,dashAir:false,dashDir:1},safe:{x:24,y:9*TS-14}};
@@ -989,6 +992,21 @@ function step(){
       else if(B.inv<=20)hurt(false);
     }
   }else if(B&&!B.alive)B.dead++;
+  const A=L.agent;
+  if(A&&A.alive){
+    if(A.inv>0)A.inv--;if(A.stun>0)A.stun--;
+    const adx=p.x-A.x,near=Math.abs(adx)<170&&p.x>L.arenaX-70;
+    A.face=adx<0?-1:1;
+    if(near&&A.stun<=0)A.vx=A.face*(Math.abs(adx)>36?1.2:0.25);else A.vx*=0.8;
+    A.vy=Math.min(A.vy+0.32,6.5);
+    if(A.onGround&&near&&A.stun<=0&&(A.hitWall||(p.y+p.h<A.y-4&&Math.abs(adx)<36)))A.vy=-5.8;
+    moveBody(A);A.x=clamp(A.x,A.minX,A.maxX);
+    if(near&&A.stun<=0&&--A.cd<=0){A.cd=Math.max(40,78-L.d*3);L.shots.push({x:A.x+(A.face>0?A.w:-5),y:A.y+6,w:5,h:3,vx:A.face*3.2,life:90,fast:true});burst(A.x+(A.face>0?A.w:0),A.y+7,"#7fd8ff",4,1.5)}
+    if(overlap(p,A)){
+      if(p.vy>0&&p.y+p.h-A.y<10&&A.inv<=0){p.vy=keys.jump?-6:-4.5;L.freeze=4;hitAgent(A)}
+      else if(A.stun<=0)hurt(false);
+    }
+  }else if(A&&!A.alive)A.dead++;
   for(const c of L.cards){c.x+=c.vx;c.y+=c.vy;c.vy+=0.12;c.rot+=0.3;c.life--;if(solidAt(c.x+3,c.y+6)){c.life=0;burst(c.x+3,c.y+6,"#f5ead2",3,1)}if(c.life>0&&overlap(p,c)){c.life=0;hurt(false)}}
   L.cards=L.cards.filter(c=>c.life>0);
   if(!running)return;
@@ -1000,6 +1018,7 @@ function step(){
     for(const dr of L.E.drones)if(dr.alive&&overlap(dt,dr)){dr.alive=false;hit();burst(dr.x+7,dr.y+4,"#e04b63");addChips(takedown(3),dr.x,dr.y-6)}
     for(const t of L.E.turrets)if(t.alive&&overlap(dt,t)){t.alive=false;hit();burst(t.x+6,t.y+5,"#ffcf5a");addChips(takedown(t.sniper?5:3),t.x,t.y-6)}
     for(const c of L.E.cams)if(c.alive&&overlap(dt,c)){c.alive=false;dt.life=0;burst(c.x+5,c.y+3,"#c9ced6",8)}
+    if(L.agent&&L.agent.alive&&L.agent.inv<=0&&overlap(dt,L.agent)){dt.life=0;hitAgent(L.agent)}
     if(B&&B.alive&&B.inv<=0&&overlap(dt,B)){B.hp-=1;B.inv=20;dt.life=0;burst(dt.x,dt.y,"#f3d07c",6);if(B.hp<=0)killBoss()}
   }
   L.darts=L.darts.filter(d=>d.life>0);
@@ -1023,7 +1042,7 @@ function step(){
   }
   if(L.shake>0)L.shake--;if(L.flash>0)L.flash--;
   const target=p.x-VW*0.42;L.cam+=(target-L.cam)*0.15;L.cam=clamp(L.cam,0,L.W*TS-VW);
-  if(p.x+p.w>L.exitX+6){if(L.boss&&L.boss.alive){p.x=L.exitX+6-p.w;p.vx=0;if(L.f%60===0)pop(p.x-20,p.y-8,"BEAT THE CROUPIER","#e04b63")}else{L.exiting=1;burst(L.exitX+11,L.exitY-16,"#f3d07c",14,2)}}
+  if(p.x+p.w>L.exitX+6){if((L.boss&&L.boss.alive)||(L.agent&&L.agent.alive)){p.x=L.exitX+6-p.w;p.vx=0;if(L.f%60===0)pop(p.x-20,p.y-8,L.boss&&L.boss.alive?"BEAT THE CROUPIER":"DEFEAT THE AGENT","#e04b63")}else{L.exiting=1;burst(L.exitX+11,L.exitY-16,"#f3d07c",14,2)}}
 }
 function tripAlarm(){
   L.alarm=true;L.alarmEver=true;L.alert=100;run.alarms++;L.shake=10;pop(L.p.x-14,L.p.y-14,"ALARM!","#e04b63");
@@ -1039,6 +1058,11 @@ function objState(){
   if(o==="speed"){const t=L.f/60;const left=Math.max(0,Math.ceil(L.par-t));return{ok:t<=L.par,txt:t<=L.par?"PAR "+Math.floor(left/60)+":"+String(left%60).padStart(2,"0"):"PAR MISSED"}}
   if(o==="collector"){const t=L.E.chips.filter(c=>c.taken).length,need=Math.ceil(L.chipTotal*0.75);return{ok:t>=need,txt:"BAG "+t+"/"+need}}
   const ok=L.E.cases.some(c=>c.taken);return{ok,txt:"CASE "+(ok?"FOUND":"MISSING")};
+}
+function hitAgent(A){
+  A.hp--;A.inv=40;A.stun=30;L.shake=6;burst(A.x+5,A.y+6,"#7fd8ff",10);
+  if(A.hp<=0){A.alive=false;L.shake=14;L.freeze=8;burst(A.x+5,A.y+6,"#e04b63",16,4);run.heist=Math.max(0,run.heist-1);addChips(10,A.x,A.y-10);pop(A.x-14,A.y-22,"AGENT DOWN · HEIST −1","#7fd8ff")}
+  else pop(A.x-4,A.y-12,"HIT","#7fd8ff");
 }
 function killBoss(){
   const B=L.boss;B.alive=false;L.shake=24;L.freeze=10;L.cards=[];
@@ -1284,7 +1308,7 @@ function draw(){
     ctx.fillStyle="#2a2f37";ctx.fillRect(x,m.y,m.w,m.h);ctx.fillStyle=th.trim;ctx.fillRect(x,m.y,m.w,2);ctx.fillStyle="#d9a441";for(let k=4;k<m.w-4;k+=8)ctx.fillRect(x+k,m.y+3,4,2);
     ctx.fillStyle="rgba(255,90,118,.5)";ctx.fillRect(x+m.w/2-1,m.y+m.h,2,1+(L.f>>3)%3)}
   // exit
-  const ex=L.exitX-cx,ey=L.exitY,locked=L.boss&&L.boss.alive;
+  const ex=L.exitX-cx,ey=L.exitY,locked=(L.boss&&L.boss.alive)||(L.agent&&L.agent.alive);
   if(L.type==="vault"){
     ctx.fillStyle="rgba(217,164,65,.15)";ctx.beginPath();ctx.arc(ex+12,ey-20,26,0,7);ctx.fill();
     ctx.fillStyle="#d9a441";ctx.beginPath();ctx.arc(ex+12,ey-20,19,0,7);ctx.fill();ctx.fillStyle=locked?"#3a2a12":"#6e5222";ctx.beginPath();ctx.arc(ex+12,ey-20,14,0,7);ctx.fill();
@@ -1337,6 +1361,15 @@ function draw(){
     {const gy=groundBelow(dr.x+7,dr.y+8);if(gy>0){const hg=gy-dr.y;ctx.fillStyle="rgba(0,0,0,"+(0.28*(1-Math.min(1,hg/120))).toFixed(2)+")";ctx.fillRect(x+3,gy-1,8,2)}}
     ctx.fillStyle="rgba(255,90,118,.12)";ctx.beginPath();ctx.moveTo(x+7,y+6);ctx.lineTo(x-3,y+40);ctx.lineTo(x+17,y+40);ctx.fill();
     ctx.drawImage(spr("d"+(L.f>>1)%2,DRONE[(L.f>>1)%2],PAL_D),x,y-1);glow(x+7,y+4,7,"rgba(255,90,118,.9)",0.8)}
+  // rival agent
+  {const A=L.agent;if(A&&(A.alive||A.dead<30)){const x=Math.round(A.x)-cx-1,y=Math.round(A.y)-1;
+    let pose="idle";if(!A.onGround)pose=A.vy<0?"jump":"fall";else if(Math.abs(A.vx)>0.3)pose="r"+(Math.floor(L.f/6)%4);
+    const arm=pose==="idle"?J_ARM.idle:pose==="jump"||pose==="fall"?J_ARM.air:(pose==="r0"||pose==="r2")?J_ARM.runA:J_ARM.runB;
+    if(A.alive){glow(x+6,y+8,20,"rgba(224,75,99,.45)",0.5);ctx.fillStyle="rgba(0,0,0,.25)";ctx.fillRect(x+2,y+15,8,2)}
+    ctx.globalAlpha=A.alive?1:1-A.dead/30;
+    if(!(A.inv>0&&L.f%4<2))blit(spr("ob"+pose,[...J_UP,arm,...J_LEG[pose]],PAL_OB),x,y+(A.alive?0:A.dead/3|0),A.face<0);
+    ctx.globalAlpha=1;
+    if(A.stun>0&&L.f%6<3){ctx.fillStyle="#ffcf5a";ctx.fillRect(x+2,y-4,2,2);ctx.fillRect(x+8,y-4,2,2)}}}
   // boss
   const B=L.boss;
   if(B&&(B.alive||B.dead<40)){const x=Math.round(B.x-cx),y=Math.round(B.y);if(B.alive&&!(B.inv>0&&L.f%4<2))drawCroupier(x,y,B);else if(!B.alive){ctx.globalAlpha=1-B.dead/40;drawCroupier(x,y+B.dead/2,B);ctx.globalAlpha=1}}
@@ -1393,6 +1426,7 @@ function draw(){
     for(const c of L.cards)hole(c.x-cx+3,c.y+4,20,.6);
     for(const q of L.parts)if(q.life>8)hole(q.x-cx,q.y,8,.35);
     if(B&&B.alive)hole(B.x-cx+12,B.y+16,52,.9);
+    if(L.agent&&L.agent.alive)hole(L.agent.x-cx+5,L.agent.y+7,34,.8);
     lctx.globalAlpha=1;lctx.globalCompositeOperation="source-over";ctx.drawImage(lightC,0,0);
     glow(pxl,pyl,46,"rgba(255,226,170,.28)",0.35)}
   ctx.drawImage(vig,0,0);
@@ -1414,7 +1448,7 @@ function draw(){
   // intro banner
   if(L.f<110){const a=L.f<90?1:1-(L.f-90)/20;ctx.globalAlpha=a;ctx.fillStyle="rgba(22,10,16,.8)";ctx.fillRect(0,70,VW,40);ctx.fillStyle="#d9a441";ctx.fillRect(0,70,VW,1);ctx.fillRect(0,109,VW,1);
     ctx.fillStyle="#f3d07c";ctx.font="10px Silkscreen,monospace";const t=L.title;ctx.fillText(t,Math.round(VW/2-ctx.measureText(t).width/2),88);
-    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.boss?"DEFEAT THE CROUPIER · CRACK THE VAULT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
+    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.boss?"DEFEAT THE CROUPIER · CRACK THE VAULT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
 }
 function drawCroupier(x,y,B){
   const f=B.face, R=(rx,ry,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(f>0?x+rx:x+24-rx-w,y+ry,w,h)};

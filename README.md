@@ -52,6 +52,7 @@ Each hex type flavours its level: Gold fronts drop more chips and safes, Circuit
 - When no free hex is left it seizes one of yours. **Outposts can't be seized.**
 - Each mission, its heist meter rises by the number of hexes it holds, and by 1 more for each of its hexes that matches the dice roll. At 15 it cracks the Vault and your run is over.
 - Raid a rival hex to take it back: +1 threat, +3 resources instead of 2, and the heist meter drops by 3.
+- A rival **agent** guards the exit of every raid. They chase you, jump, and fire fast shots along your line. It takes two stomps or darts to put them down, and the exit stays locked until they fall. Beating them pays 10 chips and drops the heist meter by 1 more.
 
 ## Stealth and alarms
 
