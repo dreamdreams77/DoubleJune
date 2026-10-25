@@ -255,10 +255,10 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
     </div>
     <div class="pad" id="pad">
       <div class="grp"><button data-k="left" aria-label="Left">◀</button><button data-k="right" aria-label="Right">▶</button></div>
-      <div class="grp"><button data-k="dash" id="btnDash" aria-label="Dash" hidden>DASH</button><button data-k="fire" aria-label="Fire dart">FIRE</button><button data-k="jump" class="jump" aria-label="Jump">JUMP</button></div>
+      <div class="grp"><button data-k="bomb" id="btnBomb" aria-label="Smoke bomb" hidden>BOMB</button><button data-k="dash" id="btnDash" aria-label="Dash" hidden>DASH</button><button data-k="fire" aria-label="Fire dart">FIRE</button><button data-k="jump" class="jump" aria-label="Jump">JUMP</button></div>
     </div>
     </div>
-    <p class="keys">ARROWS / A D MOVE · SPACE / W JUMP (HOLD) · X FIRE · C / SHIFT DASH (WITH PHASE DASH) · P PAUSE</p>
+    <p class="keys">ARROWS / A D MOVE · SPACE / W JUMP (HOLD) · X FIRE · C / SHIFT DASH (WITH PHASE DASH) · B SMOKE BOMB · P PAUSE</p>
   </section>
 
   <!-- PERK PICK -->
@@ -457,7 +457,7 @@ function newRun(){
   const heat=meta.heat, kit=meta.kit;
   run={seed,heat,kit,hexes:types.map((t,i)=>({i,type:t,num:nums[i],name:used[t].pop(),claimed:false,outpost:false,rival:false,obj:OBJ_KEYS[Math.floor(rng()*OBJ_KEYS.length)],mod:pickMod(rng)})),
     chips:20,res:{gold:1,circ:1,intel:1},hearts:heat>=3?2:3,maxHearts:heat>=3?2:3,shield:0,perks:[],windUsed:false,
-    gadgets:{dash:false,boots:false,pen:false,magnet:false,jammer:false},cleared:0,missions:0,earned:0,briefcases:0,objectives:0,retakes:0,alarms:0,
+    bombs:0,gadgets:{dash:false,boots:false,pen:false,magnet:false,jammer:false},cleared:0,missions:0,earned:0,briefcases:0,objectives:0,retakes:0,alarms:0,
     turn:0,heist:0,heistMax:heat>=5?12:15,report:"",won:false};
   if(kit==="gambler")run.chips+=40;
   if(kit==="engineer")run.gadgets.boots=true;
@@ -550,7 +550,7 @@ function renderMap(){
   svg.innerHTML=out;
   $("#clearedLbl").textContent=held()+" of 6 held";
   const g=run.gadgets, parts=[];
-  if(g.boots)parts.push("Spring Heels");if(g.dash)parts.push("Phase Dash");if(g.jammer)parts.push("Signal Jammer");if(g.pen)parts.push("Dart Pen");if(g.magnet)parts.push("Magnet Cufflinks");if(run.shield)parts.push(run.shield+" Bowtie Shield"+(run.shield>1?"s":""));
+  if(g.boots)parts.push("Spring Heels");if(g.dash)parts.push("Phase Dash");if(run.bombs)parts.push(run.bombs+" Smoke Bomb"+(run.bombs>1?"s":""));if(g.jammer)parts.push("Signal Jammer");if(g.pen)parts.push("Dart Pen");if(g.magnet)parts.push("Magnet Cufflinks");if(run.shield)parts.push(run.shield+" Bowtie Shield"+(run.shield>1?"s":""));
   $("#gadgetLine").textContent=parts.length?"Kit: "+parts.join(" · "):"Kit: nothing yet. Visit the Gadget Bench.";
   $("#perkTags").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
   updHeist();renderBrief();hud();
@@ -788,12 +788,12 @@ function fitStage(){
 let fitT=0;const refit=()=>{clearTimeout(fitT);fitT=setTimeout(fitStage,120)};
 addEventListener("resize",refit);addEventListener("orientationchange",refit);
 if(window.visualViewport)visualViewport.addEventListener("resize",refit);
-const keys={left:false,right:false,jump:false,fire:false,dash:false,jumpPressed:false,firePressed:false,dashPressed:false};
+const keys={left:false,right:false,jump:false,fire:false,dash:false,bomb:false,jumpPressed:false,firePressed:false,dashPressed:false,bombPressed:false};
 let running=false,paused=false,last=0,acc=0;
 // precomputed vignette
 const vig=document.createElement("canvas");vig.width=VW;vig.height=VH;
 {const v=vig.getContext("2d"),gr=v.createRadialGradient(VW/2,VH*0.55,VH*0.35,VW/2,VH*0.55,VW*0.62);gr.addColorStop(0,"rgba(0,0,0,0)");gr.addColorStop(1,"rgba(0,0,0,.55)");v.fillStyle=gr;v.fillRect(0,0,VW,VH)}
-function clearKeys(){for(const k of ["left","right","jump","fire","dash"])keys[k]=false;keys.jumpPressed=keys.firePressed=keys.dashPressed=false;$$("#pad button").forEach(b=>b.classList.remove("on"))}
+function clearKeys(){for(const k of ["left","right","jump","fire","dash","bomb"])keys[k]=false;keys.jumpPressed=keys.firePressed=keys.dashPressed=keys.bombPressed=false;$$("#pad button").forEach(b=>b.classList.remove("on"))}
 function startLevel(i){
   clearKeys();
   const type=i===6?"vault":run.hexes[i].type, d=threatOf(i);
@@ -807,7 +807,7 @@ function startLevel(i){
   $("#lvlName").textContent=L.title+" · THREAT "+(d+1)+(mod?" · "+MODS[mod].name.toUpperCase():"");
   $("#lvlChips").textContent="CHIPS +0";
   $("#ovl").hidden=true;paused=false;$("#btnPause").textContent="Pause";
-  $("#btnDash").hidden=!run.gadgets.dash;show("scr-level");fitStage();hud();running=true;last=performance.now();acc=0;ALPHA=0;requestAnimationFrame(loop);
+  $("#btnDash").hidden=!run.gadgets.dash;$("#btnBomb").hidden=run.bombs<=0;$("#btnBomb").textContent="BOMB ×"+run.bombs;show("scr-level");fitStage();hud();running=true;last=performance.now();acc=0;ALPHA=0;requestAnimationFrame(loop);
 }
 function loop(t){
   if(!running)return;
@@ -830,6 +830,19 @@ function burst(x,y,col,n=8,sp=3){for(let k=0;k<n;k++)L.parts.push({x,y,vx:(Math.
 function dust(x,y,n=5){for(let k=0;k<n;k++)L.parts.push({x:x+(Math.random()-.5)*8,y,vx:(Math.random()-.5)*1.2,vy:-Math.random()*0.6,life:18,col:"rgba(245,234,210,.7)",g:0})}
 function pop(x,y,text,col){L.pops.push({x,y,text,life:44,col:col||"#f3d07c"})}
 function addChips(n,x,y){run.chips+=n;run.earned+=n;L.got+=n;$("#lvlChips").textContent="CHIPS +"+L.got;hud();if(x!==undefined)pop(x,y,"+"+n)}
+// Close-range strike for agents without the Dart Pen: silent kill from behind, a stun from the front
+function sap(){
+  const p=L.p;p.cool=22;L.swing=8;
+  for(const g of L.E.goons){
+    if(!g.alive)continue;const dx=(g.x+6)-(p.x+5);
+    if(dx*p.face<=0||Math.abs(dx)>18||Math.abs(g.y-p.y)>10)continue;
+    if(!g.alerted&&Math.sign(g.vx)===p.face){
+      if(g.armor>0){g.armor=0;g.big=true;g.stun=70;burst(g.x+6,g.y+4,"#c9ced6",8);pop(g.x-4,g.y-10,"ARMOR OFF","#c9ced6")}
+      else{g.alive=false;burst(g.x+6,g.y+7,"#97a9ff",12);addChips(takedown(g.big?4:2)+1,g.x,g.y-6);pop(g.x-6,g.y-14,"SILENT","#97a9ff")}
+    }else{g.stun=Math.max(g.stun||0,30);burst(g.x+6,g.y+5,"#fff7d6",5,2);pop(g.x-2,g.y-10,"STUNNED","#fff7d6")}
+    return;
+  }
+}
 const takedown=n=>{L.kills++;L.combo=(L.combo||0)+1;const link=Math.min(L.combo-1,5);if(link>0)pop(L.p.x-6,L.p.y-16,"x"+L.combo+" CHAIN","#ffcf5a");return n+link*(has("chain")?2:1)+(has("pickpocket")?2:0)};
 // returns true if the goon died; armored goons lose their plating and are stunned first
 function hitGoon(g){
@@ -871,6 +884,10 @@ function step(){
   if(!keys.jump&&p.vy<-2.2)p.vy=-2.2;
   p.vy=Math.min(p.vy+0.32,6.5);
   if(has("glide")&&keys.jump&&p.vy>1.1){p.vy=1.1;if(L.f%5===0)L.parts.push({x:p.x+5,y:p.y+4,vx:-p.face*0.4,vy:0.2,life:16,col:"rgba(51,48,74,.8)",g:0})}
+  if(keys.bombPressed){keys.bombPressed=false;if(run.bombs>0){run.bombs--;L.alert=0;L.alarm=false;L.smoke=150;L.blind=300;
+    for(const g of L.E.goons)if(g.alive){if(g.alerted){g.alerted=false;g.vx=Math.sign(g.vx||1)*(0.45+L.d*0.06)}g.stun=Math.max(g.stun||0,80)}
+    for(let k=0;k<18;k++)L.parts.push({x:p.x+5+(Math.random()-.5)*30,y:p.y+4+(Math.random()-.5)*16,vx:(Math.random()-.5)*1.4,vy:-Math.random()*0.8,life:40,col:"rgba(205,210,222,.6)",g:0});
+    pop(p.x-6,p.y-10,"SMOKE","#c9ced6");$("#btnBomb").textContent="BOMB ×"+run.bombs;$("#btnBomb").hidden=run.bombs<=0}}
   if(p.dashCd>0)p.dashCd--;
   if(keys.dashPressed){keys.dashPressed=false;if(G.dash&&p.dashCd<=0&&!(p.dashAir&&!p.onGround)){p.dashT=11;p.dashDir=ax||p.face;p.face=p.dashDir;p.dashCd=50;if(!p.onGround)p.dashAir=true;p.inv=Math.max(p.inv,14);pop(p.x-4,p.y-8,"DASH","#7fd8ff")}}
   if(p.dashT>0){p.dashT--;p.vx=p.dashDir*4.6;p.vy=0;L.parts.push({x:p.x+5,y:p.y+7,vx:-p.dashDir*0.3,vy:0,life:12,col:"rgba(127,216,255,.55)",g:0});if(L.f%2===0)L.parts.push({x:p.x+5,y:p.y+3+Math.random()*10,vx:-p.dashDir*0.8,vy:0,life:9,col:"rgba(255,255,255,.7)",g:0})}
@@ -885,9 +902,9 @@ function step(){
     if(Math.abs(p.vx)>1.6&&L.f%9===0)dust(p.x+5,p.y+14,2)}
   p.sx+=(1-p.sx)*0.2;p.sy+=(1-p.sy)*0.2;
   if(p.bonk){for(const c of p.bonk.cs){if(p.bonk.r>=0&&c>=0&&c<L.W&&L.tiles[p.bonk.r][c]===3){L.tiles[p.bonk.r][c]=4;paintTile(c,p.bonk.r);addChips(has("safecracker")?10:5,c*TS+4,p.bonk.r*TS-6);burst(c*TS+8,p.bonk.r*TS,"#f3d07c",12);L.shake=4;break}}}
-  if(p.inv>0)p.inv--;if(p.cool>0)p.cool--;
+  if(p.inv>0)p.inv--;if(p.cool>0)p.cool--;if(L.swing>0)L.swing--;if(L.smoke>0)L.smoke--;
   p.anim+=Math.abs(p.vx)*0.11;
-  if(keys.firePressed){keys.firePressed=false;if(G.pen&&p.cool<=0){L.darts.push({x:p.x+(p.face>0?p.w:-4),y:p.y+7,w:5,h:2,vx:p.face*5,life:50});p.cool=has("quick")?8:16}else if(!G.pen&&!L.penHint){L.penHint=1;pop(p.x-4,p.y-6,"NO PEN")}}
+  if(keys.firePressed){keys.firePressed=false;if(G.pen&&p.cool<=0){L.darts.push({x:p.x+(p.face>0?p.w:-4),y:p.y+7,w:5,h:2,vx:p.face*5,life:50});p.cool=has("quick")?8:16}else if(!G.pen&&p.cool<=0)sap()}
   if(p.y>ROWS*TS+16){hurt(true);if(!running)return}
   // goons
   for(const g of L.E.goons){
@@ -929,11 +946,12 @@ function step(){
   // stealth
   const am=(has("ghostproto")?0.5:1)*(run.gadgets.jammer?0.8:1)*(run.heat>=4?1.5:1);
   let seen=false;const pcx=p.x+5,pcy=p.y+7;
-  for(const c of L.E.cams){c.see=false;if(!c.alive||run.gadgets.jammer)continue;c.t+=0.015;c.ang=Math.PI/2+Math.sin(c.t)*0.75;
+  const blind=L.blind>0;if(blind)L.blind--;
+  for(const c of L.E.cams){c.see=false;if(!c.alive||run.gadgets.jammer||blind)continue;c.t+=0.015;c.ang=Math.PI/2+Math.sin(c.t)*0.75;
     const dx=pcx-(c.x+5),dy=pcy-(c.y+6);
     if(dy>0&&Math.hypot(dx,dy)<150&&Math.abs(Math.atan2(dy,dx)-c.ang)<0.16){seen=true;c.see=true;L.alert+=1.6*am}}
-  for(const dr of L.E.drones){if(!dr.alive)continue;const ry=pcy-(dr.y+6);if(ry>0&&ry<44&&Math.abs(pcx-(dr.x+7))<4+ry*0.3){seen=true;L.alert+=1.1*am}}
-  for(const g of L.E.goons){if(!g.alive||g.alerted)continue;const dx=pcx-(g.x+6);
+  for(const dr of L.E.drones){if(!dr.alive||blind)continue;const ry=pcy-(dr.y+6);if(ry>0&&ry<44&&Math.abs(pcx-(dr.x+7))<4+ry*0.3){seen=true;L.alert+=1.1*am}}
+  for(const g of L.E.goons){if(!g.alive||g.alerted||blind)continue;const dx=pcx-(g.x+6);
     if(Math.abs(dx)<64&&Math.abs(pcy-(g.y+7))<18&&Math.sign(dx)===Math.sign(g.vx)){g.alerted=true;g.vx*=1.7;L.alert+=24*am;seen=true;pop(g.x+4,g.y-6,"!","#e04b63")}}
   if(!seen&&!L.alarm)L.alert=Math.max(0,L.alert-0.12);
   L.alert=Math.min(100,L.alert);if(L.alert>=100&&!L.alarm)tripAlarm();
@@ -1089,6 +1107,7 @@ function endRun(won,why){
 }
 /* ---------- drawing ---------- */
 const glowCache=new Map();
+const G_PEN=()=>run.gadgets.pen;
 function glow(x,y,r,col,a=1){
   const k=col+r;let c=glowCache.get(k);
   if(!c){c=document.createElement("canvas");c.width=c.height=r*2;const g=c.getContext("2d"),gr=g.createRadialGradient(r,r,0,r,r,r);gr.addColorStop(0,col);gr.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=gr;g.fillRect(0,0,r*2,r*2);glowCache.set(k,c)}
@@ -1313,8 +1332,10 @@ function draw(){
     if(L.dying){const img=jesperSprite("fall",run.gadgets.boots?1:0);ctx.save();ctx.translate(px+6,py+8);ctx.rotate(L.dying*0.22*p.face);ctx.drawImage(img,-6,-8);ctx.restore()}
     else if(p.inv>82)blit(spr("jw"+pose,[...J_UP,J_ARM.idle,...J_LEG[pose]],PAL_WHITE),px,py,p.face<0,p.sx,p.sy);
     else blit(jesperSprite(pose,run.gadgets.boots?1:0),px,py,p.face<0,p.sx,p.sy);
-    if(p.cool>8){ctx.fillStyle="#f3d07c";ctx.fillRect(p.face>0?px+12:px-2,py+9,2,1)}
+    if(L.swing>0){ctx.fillStyle="rgba(255,255,255,"+(L.swing/10).toFixed(2)+")";const fx=p.face>0?px+11:px-6;ctx.fillRect(fx,py+5,6,2);ctx.fillRect(fx+(p.face>0?3:-1),py+8,4,2);ctx.fillRect(fx,py+11,5,1)}
+    if(p.cool>8&&G_PEN()){ctx.fillStyle="#f3d07c";ctx.fillRect(p.face>0?px+12:px-2,py+9,2,1)}
   }
+  if(L.smoke>0){const k=L.smoke/150,pxs=Math.round(p.x-cx)+5,pys=Math.round(p.y)+7;for(let i=0;i<7;i++){const a=i*0.9+L.f*0.02,r=(1-k)*22+8;ctx.fillStyle="rgba(205,210,222,"+(0.22*k).toFixed(3)+")";ctx.beginPath();ctx.arc(pxs+Math.cos(a)*r*0.8,pys+Math.sin(a)*r*0.5-4,9+(1-k)*8,0,7);ctx.fill()}}
   for(const q of L.parts){ctx.fillStyle=q.col;ctx.fillRect(Math.round(q.x-cx),Math.round(q.y),2,2)}
   ctx.font="8px Silkscreen,monospace";
   for(const q of L.pops){ctx.globalAlpha=Math.min(1,q.life/12);ctx.fillStyle="#160a10";ctx.fillText(q.text,Math.round(q.x-cx)+1,Math.round(q.y)+1);ctx.fillStyle=q.col;ctx.fillText(q.text,Math.round(q.x-cx),Math.round(q.y));ctx.globalAlpha=1}
@@ -1403,11 +1424,12 @@ function portrait(){
 requestAnimationFrame(portrait);
 
 /* ---------- input ---------- */
-const KEYMAP={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",Space:"jump",ArrowUp:"jump",KeyW:"jump",KeyZ:"jump",KeyX:"fire",KeyJ:"fire",KeyF:"fire",KeyC:"dash",ShiftLeft:"dash",ShiftRight:"dash",KeyK:"dash"};
+const KEYMAP={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",Space:"jump",ArrowUp:"jump",KeyW:"jump",KeyZ:"jump",KeyX:"fire",KeyJ:"fire",KeyF:"fire",KeyC:"dash",ShiftLeft:"dash",ShiftRight:"dash",KeyK:"dash",KeyB:"bomb",KeyE:"bomb"};
 function press(k,down){
   if(k==="jump"&&down&&!keys.jump)keys.jumpPressed=true;
   if(k==="fire"&&down&&!keys.fire)keys.firePressed=true;
   if(k==="dash"&&down&&!keys.dash)keys.dashPressed=true;
+  if(k==="bomb"&&down&&!keys.bomb)keys.bombPressed=true;
   keys[k]=down;
 }
 addEventListener("keydown",e=>{
@@ -1425,7 +1447,7 @@ $$("#pad button").forEach(b=>{
   b.addEventListener("pointerdown",on);b.addEventListener("pointerup",off);b.addEventListener("pointercancel",off);b.addEventListener("lostpointercapture",off);
   b.addEventListener("contextmenu",e=>e.preventDefault());
 });
-addEventListener("blur",()=>{for(const k of ["left","right","jump","fire","dash"])keys[k]=false});
+addEventListener("blur",()=>{for(const k of ["left","right","jump","fire","dash","bomb"])keys[k]=false});
 function togglePause(){
   if(!running)return;paused=!paused;$("#btnPause").textContent=paused?"Resume":"Pause";
   const o=$("#ovl");
@@ -1541,13 +1563,14 @@ const ITEMS=[
   {id:"shield",name:"Bowtie Shield",desc:"Absorbs one hit. Stack up to 3.",cost:{circ:1,intel:1}},
   {id:"medkit",name:"Field Medkit",desc:"+1 max heart and heal it. Up to 6.",cost:{gold:1,circ:1,intel:1}},
   {id:"dash",name:"Phase Dash",desc:"Press C, Shift or DASH to burst forward. Nothing can hurt you mid-dash, lasers included. One air dash per jump.",cost:{circ:2,intel:1},once:true},
+  {id:"bomb",name:"Smoke Bomb",desc:"Press B or BOMB: wipes your alert and any alarm, blinds cameras and drones for 5 seconds and stuns every goon. Stock up to 3.",cost:{intel:1}},
   {id:"jammer",name:"Signal Jammer",desc:"Security cameras go dark and alert builds a little slower.",cost:{circ:2},once:true}
 ];
 function renderBench(){
   $("#trRate").textContent="Give "+(has("fence")?2:3);
   $("#benchItems").innerHTML=ITEMS.map(it=>{
     const owned=it.once&&run.gadgets[it.id];
-    const maxed=(it.id==="shield"&&run.shield>=3)||(it.id==="medkit"&&run.maxHearts>=6);
+    const maxed=(it.id==="bomb"&&run.bombs>=3)||(it.id==="shield"&&run.shield>=3)||(it.id==="medkit"&&run.maxHearts>=6);
     return `<div class="item"><h3>${it.name}</h3><p class="muted">${it.desc}</p><div class="cost">${costHTML(it.cost)}</div>
       ${owned?'<span class="owned">EQUIPPED</span>':`<button class="btn small" data-build="${it.id}" ${canAfford(it.cost)&&!maxed?"":"disabled"}>${maxed?"Maxed":"Build"}</button>`}</div>`;
   }).join("");
@@ -1559,6 +1582,7 @@ function build(id){
   pay(it.cost);
   if(it.once)run.gadgets[id]=true;
   if(id==="shield")run.shield++;
+  if(id==="bomb")run.bombs++;
   if(id==="medkit"){run.maxHearts++;run.hearts++}
   toast(it.name+" built");renderBench();
 }

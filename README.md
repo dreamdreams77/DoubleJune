@@ -22,10 +22,12 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 |---|---|---|
 | Move | Arrows or A / D | ◀ ▶ |
 | Jump (hold for height) | Space, W, Up or Z | JUMP |
-| Fire dart (needs Dart Pen) | X, J or F | FIRE |
+| Fire dart, or sap without the pen | X, J or F | FIRE |
 | Dash (needs Phase Dash) | C, Shift or K | DASH |
+| Smoke Bomb (needs stock) | B or E | BOMB |
 | Pause | P or Esc | Pause button |
 
+- **Sap** (no Dart Pen needed): press fire next to a goon. Creep up behind one that hasn't spotted you for a silent takedown (+1 chip, and armored goons lose their plating). From the front it only stuns them for half a second.
 - **Goons** (walking bots): stomp them for 2 chips.
 - **Armored goons** (steel helmets, from threat 2): the first stomp or dart knocks the armor off and stuns them, the second kills for 4 chips.
 - **Chains**: take down enemies one after another without touching the ground and each link pays 1 more chip (up to +5). Landing or getting hit resets the chain.
@@ -120,6 +122,7 @@ The Vault boss. Stomps deal 2 damage, darts deal 1. It deals arcs of playing car
 | Spring Heels | 1 Gold, 1 Circuits | Double jump |
 | Dart Pen | 2 Intel, 1 Gold | Shoot darts |
 | Phase Dash | 2 Circuits, 1 Intel | Dash forward; invulnerable mid-dash, even to lasers |
+| Smoke Bomb | 1 Intel | Stock up to 3. Wipes your alert and any alarm, blinds cameras and drones for 5 seconds, stuns every goon |
 | Magnet Cufflinks | 2 Gold | Pull nearby chips |
 | Bowtie Shield | 1 Circuits, 1 Intel | Absorb one hit (stack to 3) |
 | Field Medkit | 1 of each | +1 max heart (up to 6) |
