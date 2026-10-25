@@ -54,6 +54,18 @@ Each hex type flavours its level: Gold fronts drop more chips and safes, Circuit
 - At full alert the **alarm** trips: reinforcements drop in ahead of you, spotted goons move faster, and lasers stay on longer.
 - Darts can shoot out cameras. The **Signal Jammer** gadget shuts them all off.
 
+### Complications
+
+Many unclaimed hexes carry a complication, shown as a warning tag on the map and spelled out in the brief. Each one changes the level and pays **+1 resource** of the hex's type when you clear it.
+
+| Complication | Effect |
+|---|---|
+| Blackout (DARK) | Cameras are dead, but the level is nearly pitch black. You only see a small circle around you |
+| Gold Rush (RUSH) | About a third more chips and goons |
+| Lockdown (LOCK) | More laser gates, and they stay on longer |
+
+Complications are re-rolled after a hex is cleared, so a raid on a rival-held hex may bring a new one.
+
 ### Bonus objectives
 
 Every hex shows one optional objective in its brief. Completing it pays 12 chips, 1 resource and agency XP.
