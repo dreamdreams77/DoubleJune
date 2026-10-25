@@ -963,7 +963,7 @@ function genLevel(type,d,seed,mod,raid){
   let boss=null;
   if(type==="vault")boss={x:(Wf-14)*TS,y:g*TS-34,w:24,h:34,vx:0,vy:0,hp:run.heat>=5?12:8,max:run.heat>=5?12:8,inv:0,cd:90,jcd:160,alive:true,face:-1,minX:arenaX+16,maxX:(Wf-7)*TS,onGround:false,hitWall:false,dead:0};
   let agent=null;
-  if(raid&&type!=="vault")agent={x:(Wf-10)*TS,y:g*TS-14,w:10,h:14,vx:0,vy:0,hp:2,inv:0,cd:60,stun:0,face:-1,alive:true,onGround:false,hitWall:false,dead:0,minX:arenaX,maxX:(Wf-7)*TS};
+  if(raid&&type!=="vault")agent={x:(Wf-10)*TS,y:g*TS-14,w:10,h:14,vx:0,vy:0,hp:3,inv:0,cd:60,stun:0,face:-1,alive:true,onGround:false,hitWall:false,dead:0,minX:arenaX,maxX:(Wf-7)*TS};
   return {W:Wf,agent,tiles:T,E,boss,exitX:(Wf-5)*TS,exitY:g*TS,arenaX,par:Math.ceil(Wf*TS/2.1/60*2),chipTotal:E.chips.length};
 }
 
@@ -1194,11 +1194,11 @@ function step(){
     if(A.inv>0)A.inv--;if(A.stun>0)A.stun--;
     const adx=p.x-A.x,near=Math.abs(adx)<170&&p.x>L.arenaX-70;
     A.face=adx<0?-1:1;
-    if(near&&A.stun<=0)A.vx=A.face*(Math.abs(adx)>36?1.2:0.25);else A.vx*=0.8;
+    if(near&&A.stun<=0)A.vx=A.face*(Math.abs(adx)>36?1.45:0.35);else A.vx*=0.8;
     A.vy=Math.min(A.vy+0.32,6.5);
     if(A.onGround&&near&&A.stun<=0&&(A.hitWall||(p.y+p.h<A.y-4&&Math.abs(adx)<36)))A.vy=-5.8;
     moveBody(A);A.x=clamp(A.x,A.minX,A.maxX);
-    if(near&&A.stun<=0&&--A.cd<=0){A.cd=Math.max(40,78-L.d*3);L.shots.push({x:A.x+(A.face>0?A.w:-5),y:A.y+6,w:5,h:3,vx:A.face*3.2,life:90,fast:true});Snd.sfx("snipe");burst(A.x+(A.face>0?A.w:0),A.y+7,"#7fd8ff",4,1.5)}
+    if(near&&A.stun<=0&&--A.cd<=0){A.cd=Math.max(34,66-L.d*3);L.shots.push({x:A.x+(A.face>0?A.w:-5),y:A.y+6,w:5,h:3,vx:A.face*3.7,life:90,fast:true});Snd.sfx("snipe");burst(A.x+(A.face>0?A.w:0),A.y+7,"#7fd8ff",4,1.5)}
     if(overlap(p,A)){
       if(p.vy>0&&p.y+p.h-A.y<10&&A.inv<=0){p.vy=keys.jump?-6:-4.5;L.freeze=4;hitAgent(A)}
       else if(A.stun<=0)hurt(false);
@@ -1260,7 +1260,7 @@ function objState(){
   const ok=L.E.cases.some(c=>c.taken);return{ok,txt:"CASE "+(ok?"FOUND":"MISSING")};
 }
 function hitAgent(A){
-  Snd.sfx(A.hp<=1?"bosskill":"bosshit");A.hp--;A.inv=40;A.stun=30;L.shake=6;burst(A.x+5,A.y+6,"#7fd8ff",10);
+  Snd.sfx(A.hp<=1?"bosskill":"bosshit");A.hp--;A.inv=36;A.stun=18;L.shake=6;burst(A.x+5,A.y+6,"#7fd8ff",10);
   if(A.hp<=0){A.alive=false;L.shake=14;L.freeze=8;burst(A.x+5,A.y+6,"#e04b63",16,4);run.heist=Math.max(0,run.heist-1);addChips(10,A.x,A.y-10);pop(A.x-14,A.y-22,"AGENT DOWN · HEIST −1","#7fd8ff")}
   else pop(A.x-4,A.y-12,"HIT","#7fd8ff");
 }
@@ -1277,7 +1277,7 @@ function checkHints(p){
     if(G.dash)hint("dash","PHASE DASH: PRESS C OR SHIFT. NOTHING CAN HURT YOU MID-DASH, EVEN LASERS");
     if(run.bombs>0)hint("bomb","SMOKE BOMB: PRESS B. IT CLEARS YOUR ALERT AND ALARM AND STUNS EVERY GOON");
     if(L.mod==="blackout")hint("dark","BLACKOUT: CAMERAS ARE DEAD, BUT ONLY YOUR LANTERN LIGHTS THE WAY");
-    if(L.agent)hint("agent","RAID AGENT: STOMP OR DART THEM TWICE TO UNLOCK THE EXIT. DODGE THE RED SHOTS");
+    if(L.agent)hint("agent","RAID AGENT: STOMP OR DART THEM THREE TIMES TO UNLOCK THE EXIT. DODGE THE BLUE SHOTS");
   }
   if(L.f%15!==0)return;
   const near=(o,r)=>Math.abs(o.x-p.x)<r;
