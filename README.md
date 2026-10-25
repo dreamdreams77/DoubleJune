@@ -38,6 +38,8 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 - **Safe blocks** (grey with a brass dial): hit from below for 5 chips.
 - Falling in a pit costs a heart and puts you back on the last solid ground.
 
+- **The Croupier** (vault boss): once he is down to 6 HP, every landing sends a gold shockwave rolling along the floor each way. Jump or dash over them.
+
 Each hex type flavours its level: Gold fronts drop more chips and safes, Circuits fronts have more lasers, Intel fronts have more goons. Threat rises with every hex you hold.
 
 ## The Obsidian Hand (rival agency)
@@ -53,6 +55,10 @@ Each hex type flavours its level: Gold fronts drop more chips and safes, Circuit
 - Being seen fills the alert meter (top left). It drains slowly when nobody can see you.
 - At full alert the **alarm** trips: reinforcements drop in ahead of you, spotted goons move faster, and lasers stay on longer.
 - Darts can shoot out cameras. The **Signal Jammer** gadget shuts them all off.
+
+### Field events
+
+After a mission (and its dossier pick), there is a 40% chance of a short event before you return to the map: a defector selling the rival's timetable, a smuggler's cache, a dealer with a tell, a safehouse offer, or a courier you can feed false intel. Each offers a risky choice or a safe one. Choices you can't afford are greyed out.
 
 ### Complications
 

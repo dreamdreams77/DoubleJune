@@ -262,6 +262,14 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
   </section>
 
   <!-- PERK PICK -->
+  <section class="screen" id="scr-event" hidden>
+    <div class="panel">
+      <span class="label" id="evLabel">Field report</span>
+      <h2 id="evTitle"></h2>
+      <p class="muted" id="evText"></p>
+      <div class="perks" id="evChoices"></div>
+    </div>
+  </section>
   <section class="screen" id="scr-perk" hidden>
     <div class="panel">
       <span class="label">Field promotion</span>
@@ -944,7 +952,7 @@ function step(){
     }
     B.vy=Math.min(B.vy+0.3,6);
     const wasG=B.onGround;moveBody(B);
-    if(B.onGround&&!wasG){L.shake=8;dust(B.x+12,B.y+34,10)}
+    if(B.onGround&&!wasG){L.shake=8;dust(B.x+12,B.y+34,10);if(B.hp<=6){for(const dd of [-1,1])L.shots.push({x:B.x+12+dd*14,y:B.y+B.h-7,w:8,h:6,vx:dd*1.7,life:150,wave:true});pop(B.x-4,B.y-8,"SHOCKWAVE","#ffcf5a")}}
     B.x=clamp(B.x,B.minX,B.maxX);
     if(overlap(p,B)){
       if(p.vy>0&&p.y+p.h-B.y<12&&B.inv<=0){B.hp-=2;B.inv=40;p.vy=-6.5;L.freeze=6;L.shake=8;burst(B.x+12,B.y,"#f3d07c",16);if(B.hp<=0)killBoss()}
@@ -1023,12 +1031,43 @@ function clearLevel(){
   const o=$("#ovl");o.hidden=false;
   const avail=perkPool();
   o.innerHTML=`<span class="label">${raid?"Raid complete":"Mission complete"}</span><h2>${h.name} is yours</h2><p>+${(raid?3:2)+modBonus} ${RES[h.type].name}${modBonus?" (incl. "+modName+" +1)":""} · +${L.got} chips${healed?" · +1 heart":""}${raid?" · heist −3":""}</p>${objLine}<button class="btn" id="btnBack">${avail.length?"Choose a dossier":"Back to map"}</button>`;
-  $("#btnBack").addEventListener("click",()=>{selHex=null;rolled=false;if(run.heist>=run.heistMax){endRun(false,"heist");return}if(avail.length)showPerks();else{show("scr-map");renderMap()}});$("#btnBack").focus();
+  $("#btnBack").addEventListener("click",()=>{selHex=null;rolled=false;if(run.heist>=run.heistMax){endRun(false,"heist");return}if(avail.length)showPerks();else toMap()});$("#btnBack").focus();
 }
+/* ---------- between-mission events ---------- */
+const rndRes=()=>["gold","circ","intel"][Math.floor(Math.random()*3)];
+const EVENTS=[
+  {title:"A defector at the door",text:"A rival analyst wants out and is selling what they know about the Obsidian Hand's timetable.",choices:[
+    {label:"Pay 10 chips",desc:"Heist meter −3.",ok:()=>run.chips>=10&&run.heist>0,go:()=>{run.chips-=10;const d=Math.min(3,run.heist);run.heist-=d;return `The analyst talks. Heist meter −${d}.`}},
+    {label:"Send them away",desc:"Nothing happens.",ok:()=>true,go:()=>"They slip off into the night."}]},
+  {title:"Smuggler's cache",text:"A sealed crate sits in a service tunnel. It could be supplies. It could be a trap.",choices:[
+    {label:"Crack it open",desc:"60%: +2 of a random resource. 40%: booby trap, lose a heart (never your last).",ok:()=>true,go:()=>{if(Math.random()<0.6){const k=rndRes();run.res[k]+=2;return `Jackpot: +2 ${RES[k].name}.`}if(run.hearts>1){run.hearts--;return "It was rigged. You lose a heart."}return "It was rigged, but you were quick enough to walk away unhurt."}},
+    {label:"Leave it",desc:"Nothing happens.",ok:()=>true,go:()=>"You leave the crate alone."}]},
+  {title:"A dealer with a tell",text:"A casino dealer lets slip that tonight's wheel is running hot. They'll take your side bet.",choices:[
+    {label:"Bet 15 chips",desc:"50%: win 40 chips. 50%: lose the stake.",ok:()=>run.chips>=15,go:()=>{run.chips-=15;if(Math.random()<0.5){run.chips+=40;run.earned+=25;return "The wheel obliges. +25 chips net."}return "The ball drops the wrong way. −15 chips."}},
+    {label:"Walk away",desc:"Nothing happens.",ok:()=>true,go:()=>"You keep your chips."}]},
+  {title:"Safehouse offer",text:"An old contact offers you a bed for the night, or cash for the address.",choices:[
+    {label:"Rest up",desc:()=>run.hearts<run.maxHearts?"+1 heart.":"At full health: +1 Bowtie Shield instead (max 3).",ok:()=>true,go:()=>{if(run.hearts<run.maxHearts){run.hearts++;return "A good night's sleep. +1 heart."}if(run.shield<3){run.shield++;return "You wake up with a spare bowtie shield."}return "You're already in top shape. Nothing gained."}},
+    {label:"Sell the address",desc:"+15 chips.",ok:()=>true,go:()=>{run.chips+=15;run.earned+=15;return "Easy money. +15 chips."}}]},
+  {title:"Turn a double agent",text:"One of the Obsidian Hand's couriers can be fed false intel to slow the rival's next move.",choices:[
+    {label:"Spend 1 Intel",desc:"The rival's next hex grab is delayed by one mission.",ok:()=>run.res.intel>=1,go:()=>{run.res.intel--;run.turn=Math.max(0,run.turn-1);return "The courier takes the bait. The rival loses a step."}},
+    {label:"Don't risk it",desc:"Nothing happens.",ok:()=>true,go:()=>"You let the courier pass."}]}
+];
+function showEvent(){
+  const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  $("#evTitle").textContent=ev.title;$("#evText").textContent=ev.text;
+  $("#evChoices").innerHTML=ev.choices.map((c,i)=>`<button class="perk" data-ev="${i}" ${c.ok()?"":"disabled"}><span class="label">${c.ok()?"Choice":"Can't afford"}</span><h3>${c.label}</h3><span>${typeof c.desc==="function"?c.desc():c.desc}</span></button>`).join("");
+  $$("[data-ev]").forEach(b=>b.addEventListener("click",()=>{
+    const msg=ev.choices[+b.dataset.ev].go();hud();
+    $("#evText").textContent=msg;$("#evChoices").innerHTML='<button class="btn" id="evOk">Back to map</button>';
+    $("#evOk").addEventListener("click",()=>{if(run.heist>=run.heistMax){endRun(false,"heist");return}show("scr-map");renderMap()});$("#evOk").focus();
+  }));
+  show("scr-event");
+}
+function toMap(){if(run.cleared>=1&&Math.random()<0.4)showEvent();else{show("scr-map");renderMap()}}
 function showPerks(){
   const pool=shuffle(perkPool(),Math.random).slice(0,3);
   $("#perkChoices").innerHTML=pool.map(p=>`<button class="perk" data-perk="${p.id}"><span class="label">${p.tag}</span><h3>${p.name}</h3><span>${p.desc}</span></button>`).join("");
-  $$("[data-perk]").forEach(b=>b.addEventListener("click",()=>{run.perks.push(b.dataset.perk);toast(PERKS.find(p=>p.id===b.dataset.perk).name+" added");show("scr-map");renderMap()}));
+  $$("[data-perk]").forEach(b=>b.addEventListener("click",()=>{run.perks.push(b.dataset.perk);toast(PERKS.find(p=>p.id===b.dataset.perk).name+" added");toMap()}));
   show("scr-perk");
 }
 function endRun(won,why){
@@ -1238,7 +1277,7 @@ function draw(){
         ctx.fillStyle="rgba(255,48,80,"+(t.charge>18?(L.f%4<2?0.3:0.12):0.9)+")";ctx.fillRect(Math.round(Math.min(x0,lx)-cx),Math.round(t.aimY),Math.max(1,Math.round(Math.abs(lx-x0))),1);
         if(t.charge<=18)glow(x+(dir>0?12:0),t.y+3,10,"rgba(255,48,80,.9)",0.9)}}
     else blit(spr("tur",TURRET,PAL_T),x,t.y,t.face<0)}
-  for(const s of L.shots){const x=Math.round(s.x-cx);glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle=s.fast?"rgba(255,48,80,.4)":"rgba(255,207,90,.35)";ctx.fillRect(s.fast?(s.vx>0?x-s.vx*3:x):x-2,s.y-1,s.fast?Math.abs(s.vx)*3+6:8,5);ctx.fillStyle=s.fast?"#ff3050":"#ffcf5a";ctx.fillRect(x,s.y,s.fast?6:4,3)}
+  for(const s of L.shots){const x=Math.round(s.x-cx);if(s.wave){glow(x+4,s.y+3,12,"rgba(243,208,124,.8)",0.8);ctx.fillStyle="#8a5d18";ctx.fillRect(x,s.y,8,6);ctx.fillStyle="#f3d07c";ctx.fillRect(x+1,s.y+1,6,4);ctx.fillStyle="#e04b63";ctx.fillRect(x+3,s.y+2,2,2);continue}glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle=s.fast?"rgba(255,48,80,.4)":"rgba(255,207,90,.35)";ctx.fillRect(s.fast?(s.vx>0?x-s.vx*3:x):x-2,s.y-1,s.fast?Math.abs(s.vx)*3+6:8,5);ctx.fillStyle=s.fast?"#ff3050":"#ffcf5a";ctx.fillRect(x,s.y,s.fast?6:4,3)}
   // cameras + cones
   for(const c of L.E.cams){const x=Math.round(c.x-cx);if(x<-160||x>VW+160)continue;
     if(c.alive&&!run.gadgets.jammer){const a=c.ang,ox=x+5,oy=c.y+6;ctx.fillStyle=c.see?"rgba(224,75,99,.26)":"rgba(255,231,168,.11)";ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(ox+Math.cos(a-0.16)*150,oy+Math.sin(a-0.16)*150);ctx.lineTo(ox+Math.cos(a+0.16)*150,oy+Math.sin(a+0.16)*150);ctx.fill()}
