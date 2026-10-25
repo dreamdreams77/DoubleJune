@@ -4,6 +4,11 @@ A spy-platformer roguelite in one HTML file. You play **Agent Jesper**, a pocket
 
 No build step, no dependencies. Open `index.html` in a browser and play.
 
+## Learning the game
+
+- **Training mission**: the title screen has a guided course covering movement, jumping, stomping and chains, the silent sap, laser gates and cameras. It has on-screen prompts, no damage and no alarm, and you can leave from the pause menu. The title screen suggests it until you finish it once.
+- **First-time hints**: the first time each gadget, enemy or hazard matters (dash, smoke bomb, dart pen, armored goons, snipers, springs, planks, cameras and lasers, raid agents, blackouts, chains) a short hint appears at the top of the screen. Each one shows once and is remembered.
+
 ## How a run works
 
 1. **Pick a hex.** The map is seven hexes: six fronts (Gold, Circuits, Intel) around the Vault. Your first mission can be anywhere; after that you can only move next to hexes you hold.
