@@ -748,35 +748,58 @@ function spr(key,rows,pal){
     x.putImageData(im,0,0)}
   spriteCache.set(key,c);return c;
 }
-const PAL_J={h:"#24151d",H:"#4a2c3a",s:"#f0c39a",S:"#c98f6a",g:"#0d0d12",G:"#7fd8ff",t:"#17151f",T:"#33304a",w:"#f5ead2",b:"#d9a441",r:"#e04b63",k:"#0a090d"};
-const PAL_JB={...PAL_J,k:"#d9a441"};
-const PAL_JG={...PAL_J,t:"#2a1f0c",T:"#d9a441"},PAL_JGB={...PAL_JG,k:"#d9a441"};
-const J_UP=[
-"....hhhhh...",
-"...hhHhhhhh.",
-"...hhssssh..",
-"...hsssssss.",
-"...sgggGggs.",
-"...sssssSs..",
-"....sSSss...",
-"...tTwbwTt..",
-"..tTTwbwTTt.",
-"..tTtwwwtrt."];
-const J_ARM={idle:"..s.ttwtt.s.",runA:".s..ttwtt...",runB:"...sttwtt..s",air:".s..ttwtt..s"};
-const J_LEG={
- idle:["....tttt....","....tt.tt...","....tt.tt...","...kkk.kkk..","............"],
- r0:["....tttt....","...tt..tt...","..tt....tt..",".kk......kk.","............"],
- r1:["....tttt....","....ttt.....","....tt.t....","...kkk.kk...","............"],
- r2:["....tttt....","...tt.tt....","..tt...tt...","..kk....kk..","............"],
- r3:["....tttt....",".....ttt....","....t.tt....","...kk.kkk...","............"],
- jump:["...ttttt....","..tt...tt...",".kk.....tk..","........kk..","............"],
- fall:["....tttt....","...tt..tt...","...tt..tt...","..kk....kk..","............"]};
-function jesperSprite(pose,boots){
-  const arm=pose==="idle"?J_ARM.idle:pose==="jump"||pose==="fall"?J_ARM.air:(pose==="r0"||pose==="r2")?J_ARM.runA:J_ARM.runB;
-  const gold=rankOf(meta.xp)>=5;
-  return spr("j"+pose+boots+gold,[...J_UP,arm,...J_LEG[pose]],gold?(boots?PAL_JGB:PAL_JG):(boots?PAL_JB:PAL_J));
+// Jesper is drawn procedurally (head, torso, swinging limbs) so every pose shares one consistent shape.
+// Frames are 14x18: a 12x16 body area plus a 1px dark outline margin. Facing right; callers flip.
+const JPAL={
+  navy:{t:"#2f2d57",T:"#5a5694",u:"#1a1832",sh:"#f5ead2",tie:"#d9a441",hair:"#2b1a22",hl:"#5a3a48",pocket:"#e04b63"},
+  gold:{t:"#3a2a0c",T:"#d9a441",u:"#241808",sh:"#f5ead2",tie:"#e04b63",hair:"#2b1a22",hl:"#5a3a48",pocket:"#f5ead2"},
+  rival:{t:"#4a1226",T:"#8a2c4a",u:"#22060f",sh:"#e8e2f0",tie:"#7fd8ff",hair:"#0b0b0f",hl:"#262636",pocket:"#7fd8ff"}
+};
+function drawJesper(pose,phase,boots,P){
+  const c=document.createElement("canvas");c.width=14;c.height=18;const g=c.getContext("2d");
+  const shoe=boots?"#d9a441":"#0b0a10";
+  const R=(x,y,w,h,col)=>{g.fillStyle=col;g.fillRect(x+1,y+1,w,h)};
+  const line=(x0,y0,x1,y1,col)=>{x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);const n=Math.max(Math.abs(x1-x0),Math.abs(y1-y0),1);for(let i=0;i<=n;i++)R(Math.round(x0+(x1-x0)*i/n),Math.round(y0+(y1-y0)*i/n),2,2,col)};
+  let bob=0,lA,rA,lF,rF;const blink=pose==="idleB";
+  const hipL=4.5,hipR=6.5;
+  if(pose==="run"){
+    const th=phase/8*Math.PI*2,sn=Math.sin(th),cs=Math.cos(th);bob=Math.abs(sn)>0.62?1:0;
+    lF=[hipL-Math.round(sn*2.6),15-Math.round(Math.max(0,-cs)*2)];rF=[hipR+Math.round(sn*2.6),15-Math.round(Math.max(0,cs)*2)];
+    lA=[3+Math.round(sn*1.6),10+bob];rA=[9-Math.round(sn*1.6),10+bob];
+  }else if(pose==="jump"){lF=[3,14];rF=[8,12];lA=[3,5];rA=[9,6]}
+  else if(pose==="fall"){lF=[3,15];rF=[8,14];lA=[2,7];rA=[10,7]}
+  else{if(pose==="idle1")bob=1;lF=[4,15];rF=[7,15];lA=[3,11+bob];rA=[9,11+bob]}
+  const hipY=12+bob;
+  line(3.5,8+bob,lA[0],lA[1],P.u);R(lA[0],lA[1],2,2,"#c98f6a");           // back arm
+  line(hipL,hipY,lF[0],lF[1]-1,P.u);R(lF[0]-1,lF[1],3,1,shoe);             // back leg
+  R(3,7+bob,6,5,P.t);R(3,7+bob,6,1,P.T);R(3,7+bob,1,5,P.T);R(8,8+bob,1,4,P.u); // jacket
+  R(5,7+bob,2,3,P.sh);R(5,7+bob,2,1,P.tie);R(4,11+bob,4,1,P.u);R(8,9+bob,1,1,P.pocket);
+  line(hipR,hipY,rF[0],rF[1]-1,P.t);R(rF[0]-1,rF[1],3,1,shoe);             // front leg
+  line(8.5,8+bob,rA[0],rA[1],P.T);R(rA[0],rA[1],2,2,"#f0c39a");            // front arm
+  const hy=bob;                                                             // head
+  R(3,hy,6,1,P.hair);R(2,1+hy,7,1,P.hair);R(3,1+hy,3,1,P.hl);R(2,2+hy,2,3,P.hair);
+  R(4,2+hy,5,1,"#f0c39a");R(4,3+hy,5,2,"#f0c39a");R(4,5+hy,4,1,"#c98f6a");R(9,3+hy,1,1,"#f0c39a");
+  if(blink)R(5,3+hy,5,1,"#5a3a2a");else{R(5,3+hy,5,1,"#0d0d12");R(7,3+hy,1,1,"#7fd8ff")}
+  R(6,5+hy,2,1,"#a05a40");R(8,6+hy,1,1,"#c98f6a");
+  const im=g.getImageData(0,0,14,18),d=im.data,a=(x,y)=>x<0||y<0||x>=14||y>=18?0:d[(y*14+x)*4+3];
+  g.fillStyle="rgba(8,6,16,.92)";
+  for(let y=0;y<18;y++)for(let x=0;x<14;x++)if(!a(x,y)&&(a(x-1,y)||a(x+1,y)||a(x,y-1)||a(x,y+1)))g.fillRect(x,y,1,1);
+  return c;
 }
-const PAL_OB={...PAL_J,t:"#2a0a14",T:"#5a1426",h:"#0b0b0f",H:"#222230",r:"#7fd8ff",G:"#ff5a76"};
+// pose: "idle" | "idle1" | "idleB" | "jump" | "fall" | "r0".."r7"
+function jesperSprite(pose,boots,pal){
+  const gold=pal||(rankOf(meta.xp)>=5?"gold":"navy"),key="jx"+pose+boots+gold;
+  if(spriteCache.has(key))return spriteCache.get(key);
+  const m=/^r(\d)$/.exec(pose),img=m?drawJesper("run",+m[1],boots,JPAL[gold]):drawJesper(pose,0,boots,JPAL[gold]);
+  spriteCache.set(key,img);return img;
+}
+function jesperFlash(pose,boots){
+  const key="jf"+pose+boots;if(spriteCache.has(key))return spriteCache.get(key);
+  const src=jesperSprite(pose,boots,"navy"),c=document.createElement("canvas");c.width=src.width;c.height=src.height;const g=c.getContext("2d");
+  g.drawImage(src,0,0);g.globalCompositeOperation="source-in";g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);spriteCache.set(key,c);return c;
+}
+// idle breathing and blinking, shared by player and title portrait
+const idlePose=f=>f%170<7?"idleB":((f>>5)&1)?"idle1":"idle";
 const GOON=[
 [".....rr.....",".....tt.....","..mmmmmmmm..",".mMMMMMMMMm.",".mMvvvvvvMm.",".mMvvvveeMm.",".mMMMMMMMMm.",".mmmmmmmmmm.","..dmmmmmmd..","..dMMMMMMd..","..dmmmmmmd..","...dd..dd...","...dd..dd...","..ddd..ddd.."],
 [".....rr.....",".....tt.....","..mmmmmmmm..",".mMMMMMMMMm.",".mMvvvvvvMm.",".mMvvvveeMm.",".mMMMMMMMMm.",".mmmmmmmmmm.","..dmmmmmmd..","..dMMMMMMd..","..dmmmmmmd..","..dd....dd..","..dd....dd..",".ddd....ddd."]];
@@ -1028,7 +1051,7 @@ function step(){
   p.sx+=(1-p.sx)*0.2;p.sy+=(1-p.sy)*0.2;
   if(p.bonk){for(const c of p.bonk.cs){if(p.bonk.r>=0&&c>=0&&c<L.W&&L.tiles[p.bonk.r][c]===3){L.tiles[p.bonk.r][c]=4;paintTile(c,p.bonk.r);Snd.sfx("safe");addChips(has("safecracker")?10:5,c*TS+4,p.bonk.r*TS-6);burst(c*TS+8,p.bonk.r*TS,"#f3d07c",12);L.shake=4;break}}}
   if(p.inv>0)p.inv--;if(p.cool>0)p.cool--;if(L.swing>0)L.swing--;if(L.smoke>0)L.smoke--;
-  p.anim+=Math.abs(p.vx)*0.11;
+  p.anim+=Math.abs(p.vx)*0.16;
   if(keys.firePressed){keys.firePressed=false;if(G.pen&&p.cool<=0){L.darts.push({x:p.x+(p.face>0?p.w:-4),y:p.y+7,w:5,h:2,vx:p.face*5,life:50});p.cool=has("quick")?8:16;Snd.sfx("dart")}else if(!G.pen&&p.cool<=0)sap()}
   if(p.y>ROWS*TS+16){hurt(true);if(!running)return}
   // goons
@@ -1267,7 +1290,6 @@ function hole(x,y,r,a=1){
   lctx.globalAlpha=a;lctx.drawImage(c,Math.round(x-r),Math.round(y-r));
 }
 function groundBelow(x,y){let r=Math.max(0,Math.floor(y/TS));while(r<ROWS&&!solidAt(x,r*TS))r++;return r<ROWS?r*TS:-1}
-const PAL_WHITE=new Proxy({},{get:(t,k)=>k==="."?undefined:"#ffffff"});
 function hash(i){i=((i%9973)+9973)%9973;return (Math.imul(i,2654435761)>>>0)%1000}
 function blit(img,x,y,flip,sx=1,sy=1){
   const w=snap(img.width*sx),h=snap(img.height*sy);
@@ -1474,11 +1496,10 @@ function draw(){
     ctx.drawImage(spr("d"+(L.f>>1)%2,DRONE[(L.f>>1)%2],PAL_D),x,y-1);glow(x+7,y+4,7,"rgba(255,90,118,.9)",0.8)}
   // rival agent
   {const A=L.agent;if(A&&(A.alive||A.dead<30)){const x=Math.round(A.x)-cx-1,y=Math.round(A.y)-1;
-    let pose="idle";if(!A.onGround)pose=A.vy<0?"jump":"fall";else if(Math.abs(A.vx)>0.3)pose="r"+(Math.floor(L.f/6)%4);
-    const arm=pose==="idle"?J_ARM.idle:pose==="jump"||pose==="fall"?J_ARM.air:(pose==="r0"||pose==="r2")?J_ARM.runA:J_ARM.runB;
+    let pose="idle";if(!A.onGround)pose=A.vy<0?"jump":"fall";else if(Math.abs(A.vx)>0.3)pose="r"+(Math.floor(L.f/3)%8);
     if(A.alive){glow(x+6,y+8,20,"rgba(224,75,99,.45)",0.5);ctx.fillStyle="rgba(0,0,0,.25)";ctx.fillRect(x+2,y+15,8,2)}
     ctx.globalAlpha=A.alive?1:1-A.dead/30;
-    if(!(A.inv>0&&L.f%4<2))blit(spr("ob"+pose,[...J_UP,arm,...J_LEG[pose]],PAL_OB),x,y+(A.alive?0:A.dead/3|0),A.face<0);
+    if(!(A.inv>0&&L.f%4<2))blit(jesperSprite(pose,0,"rival"),x-1,y-1+(A.alive?0:A.dead/3|0),A.face<0);
     ctx.globalAlpha=1;
     if(A.stun>0&&L.f%6<3){ctx.fillStyle="#ffcf5a";ctx.fillRect(x+2,y-4,2,2);ctx.fillRect(x+8,y-4,2,2)}}}
   // boss
@@ -1491,13 +1512,13 @@ function draw(){
   if(L.dying||L.exiting<12&&!(p.inv>0&&p.inv<=82&&L.f%6<3)){
     const ix=(p.ox??p.x)+(p.x-(p.ox??p.x))*ALPHA,iy=(p.oy??p.y)+(p.y-(p.oy??p.y))*ALPHA;
     const px=Math.round(ix)-cx-1,py=Math.round(iy)-1;
-    let pose="idle";if(!p.onGround)pose=p.vy<0?"jump":"fall";else if(Math.abs(p.vx)>0.3)pose="r"+(Math.floor(p.anim)%4);
+    let pose="idle";if(!p.onGround)pose=p.vy<0?"jump":"fall";else if(Math.abs(p.vx)>0.3)pose="r"+(Math.floor(p.anim)%8);else pose=idlePose(L.f);
     if(!L.dying){let sr=Math.floor((p.y+p.h)/TS);while(sr<ROWS&&!solidAt(p.x+5,sr*TS))sr++;
       if(sr<ROWS){const hg=Math.max(0,sr*TS-(p.y+p.h)),a=0.32*(1-Math.min(1,hg/90)),w=8-2*Math.min(2,Math.floor(hg/28));if(a>0.02){ctx.fillStyle="rgba(0,0,0,"+a.toFixed(2)+")";ctx.fillRect(px+6-w/2,sr*TS-1,w,2)}}}
     if(L.cover||run.shield){ctx.save();ctx.globalCompositeOperation="lighter";ctx.fillStyle=L.cover?"rgba(151,169,255,.18)":"rgba(60,196,178,.16)";ctx.beginPath();ctx.arc(px+6,py+8,11+Math.sin(L.f*0.1),0,7);ctx.fill();ctx.restore()}
-    if(L.dying){const img=jesperSprite("fall",run.gadgets.boots?1:0);ctx.save();ctx.translate(px+6,py+8);ctx.rotate(L.dying*0.22*p.face);ctx.drawImage(img,-6,-8);ctx.restore()}
-    else if(p.inv>82)blit(spr("jw"+pose,[...J_UP,J_ARM.idle,...J_LEG[pose]],PAL_WHITE),px,py,p.face<0,p.sx,p.sy);
-    else blit(jesperSprite(pose,run.gadgets.boots?1:0),px,py,p.face<0,p.sx,p.sy);
+    if(L.dying){const img=jesperSprite("fall",run.gadgets.boots?1:0);ctx.save();ctx.translate(px+6,py+8);ctx.rotate(L.dying*0.22*p.face);ctx.drawImage(img,-7,-9);ctx.restore()}
+    else if(p.inv>82)blit(jesperFlash(pose,run.gadgets.boots?1:0),px-1,py-2,p.face<0,p.sx,p.sy);
+    else blit(jesperSprite(pose,run.gadgets.boots?1:0),px-1,py-2,p.face<0,p.sx,p.sy);
     if(L.swing>0){ctx.fillStyle="rgba(255,255,255,"+(L.swing/10).toFixed(2)+")";const fx=p.face>0?px+11:px-6;ctx.fillRect(fx,py+5,6,2);ctx.fillRect(fx+(p.face>0?3:-1),py+8,4,2);ctx.fillRect(fx,py+11,5,1)}
     if(p.cool>8&&G_PEN()){ctx.fillStyle="#f3d07c";ctx.fillRect(p.face>0?px+12:px-2,py+9,2,1)}
   }
@@ -1584,7 +1605,7 @@ function portrait(){
   pctx.fillStyle="rgba(243,208,124,.12)";pctx.beginPath();pctx.moveTo(18,0);pctx.lineTo(30,0);pctx.lineTo(44,60);pctx.lineTo(4,60);pctx.fill();
   pctx.fillStyle="#2b1121";pctx.fillRect(0,54,48,6);pctx.fillStyle="#d9a441";pctx.fillRect(0,54,48,1);
   const bob=(pf>>5)%2;
-  pctx.drawImage(jesperSprite("idle",0),12,22+bob,24,32-bob);
+  pctx.drawImage(jesperSprite(idlePose(pf),0),10,18+bob,28,36);
   if(pf%120<8){pctx.fillStyle="#fff";pctx.fillRect(28,30+bob,2,2)}
   requestAnimationFrame(portrait);
 }
