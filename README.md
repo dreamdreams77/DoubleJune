@@ -23,6 +23,7 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 | Move | Arrows or A / D | ◀ ▶ |
 | Jump (hold for height) | Space, W, Up or Z | JUMP |
 | Fire dart (needs Dart Pen) | X, J or F | FIRE |
+| Dash (needs Phase Dash) | C, Shift or K | DASH |
 | Pause | P or Esc | Pause button |
 
 - **Goons** (walking bots): stomp them for 2 chips.
@@ -30,6 +31,7 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 - **Chains**: take down enemies one after another without touching the ground and each link pays 1 more chip (up to +5). Landing or getting hit resets the chain.
 - **Drones**: stomp or dart them for 3 chips.
 - **Turrets**: fire slow shots along the ground. Stomp or dart them for 3 chips.
+- **Snipers** (crimson turrets, from threat 3): a red aim line tracks you, locks for the last third of a second, then fires a fast shot along it. Move, jump or dash out of the line. Stomp or dart them for 5 chips.
 - **Laser gates**: they flicker before switching on. Time your crossing.
 - **Moving platforms**: ride them across wide gaps.
 - **Briefcase**: one per mission, hidden on a high platform. Worth a free resource.
@@ -99,6 +101,7 @@ The Vault boss. Stomps deal 2 damage, darts deal 1. It deals arcs of playing car
 |---|---|---|
 | Spring Heels | 1 Gold, 1 Circuits | Double jump |
 | Dart Pen | 2 Intel, 1 Gold | Shoot darts |
+| Phase Dash | 2 Circuits, 1 Intel | Dash forward; invulnerable mid-dash, even to lasers |
 | Magnet Cufflinks | 2 Gold | Pull nearby chips |
 | Bowtie Shield | 1 Circuits, 1 Intel | Absorb one hit (stack to 3) |
 | Field Medkit | 1 of each | +1 max heart (up to 6) |

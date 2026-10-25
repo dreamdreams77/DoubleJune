@@ -255,10 +255,10 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
     </div>
     <div class="pad" id="pad">
       <div class="grp"><button data-k="left" aria-label="Left">◀</button><button data-k="right" aria-label="Right">▶</button></div>
-      <div class="grp"><button data-k="fire" aria-label="Fire dart">FIRE</button><button data-k="jump" class="jump" aria-label="Jump">JUMP</button></div>
+      <div class="grp"><button data-k="dash" id="btnDash" aria-label="Dash" hidden>DASH</button><button data-k="fire" aria-label="Fire dart">FIRE</button><button data-k="jump" class="jump" aria-label="Jump">JUMP</button></div>
     </div>
     </div>
-    <p class="keys">ARROWS / A D MOVE · SPACE / W JUMP (HOLD) · X FIRE · P PAUSE</p>
+    <p class="keys">ARROWS / A D MOVE · SPACE / W JUMP (HOLD) · X FIRE · C / SHIFT DASH (WITH PHASE DASH) · P PAUSE</p>
   </section>
 
   <!-- PERK PICK -->
@@ -442,7 +442,7 @@ function newRun(){
   const heat=meta.heat, kit=meta.kit;
   run={seed,heat,kit,hexes:types.map((t,i)=>({i,type:t,num:nums[i],name:used[t].pop(),claimed:false,outpost:false,rival:false,obj:OBJ_KEYS[Math.floor(rng()*OBJ_KEYS.length)]})),
     chips:20,res:{gold:1,circ:1,intel:1},hearts:heat>=3?2:3,maxHearts:heat>=3?2:3,shield:0,perks:[],windUsed:false,
-    gadgets:{boots:false,pen:false,magnet:false,jammer:false},cleared:0,missions:0,earned:0,briefcases:0,objectives:0,retakes:0,alarms:0,
+    gadgets:{dash:false,boots:false,pen:false,magnet:false,jammer:false},cleared:0,missions:0,earned:0,briefcases:0,objectives:0,retakes:0,alarms:0,
     turn:0,heist:0,heistMax:heat>=5?12:15,report:"",won:false};
   if(kit==="gambler")run.chips+=40;
   if(kit==="engineer")run.gadgets.boots=true;
@@ -534,7 +534,7 @@ function renderMap(){
   svg.innerHTML=out;
   $("#clearedLbl").textContent=held()+" of 6 held";
   const g=run.gadgets, parts=[];
-  if(g.boots)parts.push("Spring Heels");if(g.jammer)parts.push("Signal Jammer");if(g.pen)parts.push("Dart Pen");if(g.magnet)parts.push("Magnet Cufflinks");if(run.shield)parts.push(run.shield+" Bowtie Shield"+(run.shield>1?"s":""));
+  if(g.boots)parts.push("Spring Heels");if(g.dash)parts.push("Phase Dash");if(g.jammer)parts.push("Signal Jammer");if(g.pen)parts.push("Dart Pen");if(g.magnet)parts.push("Magnet Cufflinks");if(run.shield)parts.push(run.shield+" Bowtie Shield"+(run.shield>1?"s":""));
   $("#gadgetLine").textContent=parts.length?"Kit: "+parts.join(" · "):"Kit: nothing yet. Visit the Gadget Bench.";
   $("#perkTags").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
   updHeist();renderBrief();hud();
@@ -660,6 +660,7 @@ const DRONE=[
 const PAL_D={p:"#c9ced6",h:"#4b5360",c:"#2a2f37",C:"#4b5360",v:"#111",e:"#ff5a76"};
 const TURRET=["....kkkk....","...kKKKKk...","..kKeeKKk...","..kKKKKKkbbb","..kKKKKKk...",".kkkkkkkkk..",".kMMMMMMMk..","kMMMMMMMMMk.","kMMMMMMMMMk.","kkkkkkkkkkk."];
 const PAL_T={k:"#1f232a",K:"#5c6673",e:"#ffcf5a",b:"#2a2f37",M:"#3f4652"};
+const PAL_S={...PAL_T,K:"#7a3a5a",e:"#ff3050",M:"#4a2a3a",b:"#ff3050"};
 const CASE=["....kkkk....","....k..k....","kkkkkkkkkkkk","kBBBBBBBBBBk","kBBBBggBBBBk","kBBBBggBBBBk","kBBBBBBBBBBk","kbbbbbbbbbbk","kkkkkkkkkkkk"];
 const PAL_C={B:"#7a4a1c",b:"#5c3512",g:"#f3d07c",k:"#2a160a"};
 
@@ -727,7 +728,7 @@ function genLevel(type,d,seed){
       x+=gw;const n=R(4,6);for(let i=0;i<n;i++)setH(x+i,g);x+=n;
     }else{ // turret
       const n=R(6,9);for(let i=0;i<n;i++)setH(x+i,g);
-      E.turrets.push({x:(x+n-2)*TS+2,y:g*TS-10,w:12,h:10,cd:R(40,120),alive:true,face:-1});
+      E.turrets.push({x:(x+n-2)*TS+2,y:g*TS-10,w:12,h:10,cd:R(40,120),alive:true,face:-1,sniper:d>=3&&rng()<0.35,charge:0,aimY:0});
       for(let i=1;i<n-3;i++)if(rng()<0.4*chipBoost)chip(x+i,g-1);
       x+=n;
     }
@@ -771,25 +772,25 @@ function fitStage(){
 let fitT=0;const refit=()=>{clearTimeout(fitT);fitT=setTimeout(fitStage,120)};
 addEventListener("resize",refit);addEventListener("orientationchange",refit);
 if(window.visualViewport)visualViewport.addEventListener("resize",refit);
-const keys={left:false,right:false,jump:false,fire:false,jumpPressed:false,firePressed:false};
+const keys={left:false,right:false,jump:false,fire:false,dash:false,jumpPressed:false,firePressed:false,dashPressed:false};
 let running=false,paused=false,last=0,acc=0;
 // precomputed vignette
 const vig=document.createElement("canvas");vig.width=VW;vig.height=VH;
 {const v=vig.getContext("2d"),gr=v.createRadialGradient(VW/2,VH*0.55,VH*0.35,VW/2,VH*0.55,VW*0.62);gr.addColorStop(0,"rgba(0,0,0,0)");gr.addColorStop(1,"rgba(0,0,0,.55)");v.fillStyle=gr;v.fillRect(0,0,VW,VH)}
-function clearKeys(){for(const k of ["left","right","jump","fire"])keys[k]=false;keys.jumpPressed=keys.firePressed=false;$$("#pad button").forEach(b=>b.classList.remove("on"))}
+function clearKeys(){for(const k of ["left","right","jump","fire","dash"])keys[k]=false;keys.jumpPressed=keys.firePressed=keys.dashPressed=false;$$("#pad button").forEach(b=>b.classList.remove("on"))}
 function startLevel(i){
   clearKeys();
   const type=i===6?"vault":run.hexes[i].type, d=threatOf(i);
   const lv=genLevel(type,d,(run.seed^((i+1)*7919)^(run.missions*104729))>>>0);
   const wx=[];for(let k=0;k<44;k++)wx.push({x:Math.random()*VW,y:Math.random()*VH,s:Math.random()});
   L={...lv,type,d,hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
-    p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false},safe:{x:24,y:9*TS-14}};
+    p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false,dashT:0,dashCd:0,dashAir:false,dashDir:1},safe:{x:24,y:9*TS-14}};
   run.missions++;
   L.title=(i===6?"THE VAULT":(run.hexes[i].rival?"RAID: ":"")+run.hexes[i].name.toUpperCase());
   $("#lvlName").textContent=L.title+" · THREAT "+(d+1);
   $("#lvlChips").textContent="CHIPS +0";
   $("#ovl").hidden=true;paused=false;$("#btnPause").textContent="Pause";
-  show("scr-level");fitStage();hud();running=true;last=performance.now();acc=0;ALPHA=0;requestAnimationFrame(loop);
+  $("#btnDash").hidden=!run.gadgets.dash;show("scr-level");fitStage();hud();running=true;last=performance.now();acc=0;ALPHA=0;requestAnimationFrame(loop);
 }
 function loop(t){
   if(!running)return;
@@ -853,6 +854,9 @@ function step(){
   if(!keys.jump&&p.vy<-2.2)p.vy=-2.2;
   p.vy=Math.min(p.vy+0.32,6.5);
   if(has("glide")&&keys.jump&&p.vy>1.1){p.vy=1.1;if(L.f%5===0)L.parts.push({x:p.x+5,y:p.y+4,vx:-p.face*0.4,vy:0.2,life:16,col:"rgba(51,48,74,.8)",g:0})}
+  if(p.dashCd>0)p.dashCd--;
+  if(keys.dashPressed){keys.dashPressed=false;if(G.dash&&p.dashCd<=0&&!(p.dashAir&&!p.onGround)){p.dashT=11;p.dashDir=ax||p.face;p.face=p.dashDir;p.dashCd=50;if(!p.onGround)p.dashAir=true;p.inv=Math.max(p.inv,14);pop(p.x-4,p.y-8,"DASH","#7fd8ff")}}
+  if(p.dashT>0){p.dashT--;p.vx=p.dashDir*4.6;p.vy=0;L.parts.push({x:p.x+5,y:p.y+7,vx:-p.dashDir*0.3,vy:0,life:12,col:"rgba(127,216,255,.55)",g:0});if(L.f%2===0)L.parts.push({x:p.x+5,y:p.y+3+Math.random()*10,vx:-p.dashDir*0.8,vy:0,life:9,col:"rgba(255,255,255,.7)",g:0})}
   const wasGround=p.onGround, fallV=p.vy, prevBottom=p.y+p.h;
   moveBody(p);
   // land on moving platforms
@@ -860,7 +864,7 @@ function step(){
   if(p.vy>=0)for(const m of L.E.plats){if(p.x+p.w>m.x+1&&p.x<m.x+m.w-1&&prevBottom<=m.y+1&&p.y+p.h>=m.y){p.y=m.y-p.h;p.vy=0;p.onGround=true;p.ride=m;break}}
   if(p.onGround)L.combo=0;
   if(p.onGround&&!wasGround&&fallV>2){p.sx=1.25;p.sy=0.75;dust(p.x+5,p.y+14,6)}
-  if(p.onGround){p.jumpsUsed=0;if(!p.ride&&solidAt(p.x+1,p.y+p.h+1)&&solidAt(p.x+p.w-1,p.y+p.h+1)){L.safe={x:p.x,y:p.y};if(L.f%6===0){L.hist.push({x:p.x,y:p.y});if(L.hist.length>16)L.hist.shift()}}
+  if(p.onGround){p.jumpsUsed=0;p.dashAir=false;if(!p.ride&&solidAt(p.x+1,p.y+p.h+1)&&solidAt(p.x+p.w-1,p.y+p.h+1)){L.safe={x:p.x,y:p.y};if(L.f%6===0){L.hist.push({x:p.x,y:p.y});if(L.hist.length>16)L.hist.shift()}}
     if(Math.abs(p.vx)>1.6&&L.f%9===0)dust(p.x+5,p.y+14,2)}
   p.sx+=(1-p.sx)*0.2;p.sy+=(1-p.sy)*0.2;
   if(p.bonk){for(const c of p.bonk.cs){if(p.bonk.r>=0&&c>=0&&c<L.W&&L.tiles[p.bonk.r][c]===3){L.tiles[p.bonk.r][c]=4;paintTile(c,p.bonk.r);addChips(has("safecracker")?10:5,c*TS+4,p.bonk.r*TS-6);burst(c*TS+8,p.bonk.r*TS,"#f3d07c",12);L.shake=4;break}}}
@@ -889,8 +893,13 @@ function step(){
   for(const t of L.E.turrets){
     if(!t.alive)continue;
     const dx=p.x-t.x;t.face=dx<0?-1:1;
-    if(Math.abs(dx)<170&&Math.abs(p.y-t.y)<60){if(--t.cd<=0){t.cd=110-L.d*6;L.shots.push({x:t.x+(t.face>0?12:-4),y:t.y+3,w:4,h:3,vx:t.face*2.2,life:120});burst(t.x+(t.face>0?12:0),t.y+4,"#ffcf5a",3,1)}}
-    if(overlap(p,t)){if(p.vy>0&&p.y+p.h-t.y<8){t.alive=false;p.vy=-4.5;L.freeze=3;burst(t.x+6,t.y+5,"#ffcf5a",12);addChips(takedown(3),t.x,t.y-6)}else hurt(false)}
+    if(t.sniper){
+      if(t.charge>0){t.charge--;if(t.charge>18)t.aimY=p.y+7;
+        if(t.charge===0){L.shots.push({x:t.x+(t.face>0?12:-6),y:t.aimY-1,w:6,h:3,vx:t.face*4.8,life:90,fast:true});burst(t.x+(t.face>0?12:0),t.y+4,"#ff5a76",5,1.5);t.cd=130}}
+      else if(Math.abs(dx)<190&&Math.abs(p.y-t.y)<90&&--t.cd<=0)t.charge=52;
+    }
+    else if(Math.abs(dx)<170&&Math.abs(p.y-t.y)<60){if(--t.cd<=0){t.cd=110-L.d*6;L.shots.push({x:t.x+(t.face>0?12:-4),y:t.y+3,w:4,h:3,vx:t.face*2.2,life:120});burst(t.x+(t.face>0?12:0),t.y+4,"#ffcf5a",3,1)}}
+    if(overlap(p,t)){if(p.vy>0&&p.y+p.h-t.y<8){t.alive=false;p.vy=-4.5;L.freeze=3;burst(t.x+6,t.y+5,"#ffcf5a",12);addChips(takedown(t.sniper?5:3),t.x,t.y-6)}else hurt(false)}
   }
   for(const s of L.shots){s.x+=s.vx;s.life--;if(solidAt(s.x+2,s.y+1))s.life=0;if(s.life>0&&overlap(p,s)){s.life=0;hurt(false)}}
   L.shots=L.shots.filter(s=>s.life>0);
@@ -942,7 +951,7 @@ function step(){
     const hit=()=>{if(!has("pierce"))dt.life=0};
     for(const g of L.E.goons)if(g.alive&&overlap(dt,g)){hit();hitGoon(g)}
     for(const dr of L.E.drones)if(dr.alive&&overlap(dt,dr)){dr.alive=false;hit();burst(dr.x+7,dr.y+4,"#e04b63");addChips(takedown(3),dr.x,dr.y-6)}
-    for(const t of L.E.turrets)if(t.alive&&overlap(dt,t)){t.alive=false;hit();burst(t.x+6,t.y+5,"#ffcf5a");addChips(takedown(3),t.x,t.y-6)}
+    for(const t of L.E.turrets)if(t.alive&&overlap(dt,t)){t.alive=false;hit();burst(t.x+6,t.y+5,"#ffcf5a");addChips(takedown(t.sniper?5:3),t.x,t.y-6)}
     for(const c of L.E.cams)if(c.alive&&overlap(dt,c)){c.alive=false;dt.life=0;burst(c.x+5,c.y+3,"#c9ced6",8)}
     if(B&&B.alive&&B.inv<=0&&overlap(dt,B)){B.hp-=1;B.inv=20;dt.life=0;burst(dt.x,dt.y,"#f3d07c",6);if(B.hp<=0)killBoss()}
   }
@@ -1214,8 +1223,13 @@ function draw(){
     else if(lz.warn&&L.f%6<3){ctx.fillStyle="rgba(255,90,118,.5)";ctx.fillRect(x+1,9,2,lz.bot-9)}
   }
   // turrets + shots
-  for(const t of L.E.turrets){if(!t.alive)continue;const x=Math.round(t.x-cx);if(x<-20||x>VW+20)continue;blit(spr("tur",TURRET,PAL_T),x,t.y,t.face<0)}
-  for(const s of L.shots){const x=Math.round(s.x-cx);glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle="rgba(255,207,90,.35)";ctx.fillRect(x-2,s.y-1,8,5);ctx.fillStyle="#ffcf5a";ctx.fillRect(x,s.y,4,3)}
+  for(const t of L.E.turrets){if(!t.alive)continue;const x=Math.round(t.x-cx),wide=t.sniper?220:20;if(x<-wide||x>VW+wide)continue;
+    if(t.sniper){blit(spr("snp",TURRET,PAL_S),x,t.y,t.face<0);
+      if(t.charge>0){const dir=t.face,x0=t.x+(dir>0?12:0);let lx=x0;for(let k=0;k<200;k+=4){if(solidAt(lx+dir*4,t.aimY))break;lx+=dir*4}
+        ctx.fillStyle="rgba(255,48,80,"+(t.charge>18?(L.f%4<2?0.3:0.12):0.9)+")";ctx.fillRect(Math.round(Math.min(x0,lx)-cx),Math.round(t.aimY),Math.max(1,Math.round(Math.abs(lx-x0))),1);
+        if(t.charge<=18)glow(x+(dir>0?12:0),t.y+3,10,"rgba(255,48,80,.9)",0.9)}}
+    else blit(spr("tur",TURRET,PAL_T),x,t.y,t.face<0)}
+  for(const s of L.shots){const x=Math.round(s.x-cx);glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle=s.fast?"rgba(255,48,80,.4)":"rgba(255,207,90,.35)";ctx.fillRect(s.fast?(s.vx>0?x-s.vx*3:x):x-2,s.y-1,s.fast?Math.abs(s.vx)*3+6:8,5);ctx.fillStyle=s.fast?"#ff3050":"#ffcf5a";ctx.fillRect(x,s.y,s.fast?6:4,3)}
   // cameras + cones
   for(const c of L.E.cams){const x=Math.round(c.x-cx);if(x<-160||x>VW+160)continue;
     if(c.alive&&!run.gadgets.jammer){const a=c.ang,ox=x+5,oy=c.y+6;ctx.fillStyle=c.see?"rgba(224,75,99,.26)":"rgba(255,231,168,.11)";ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(ox+Math.cos(a-0.16)*150,oy+Math.sin(a-0.16)*150);ctx.lineTo(ox+Math.cos(a+0.16)*150,oy+Math.sin(a+0.16)*150);ctx.fill()}
@@ -1341,10 +1355,11 @@ function portrait(){
 requestAnimationFrame(portrait);
 
 /* ---------- input ---------- */
-const KEYMAP={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",Space:"jump",ArrowUp:"jump",KeyW:"jump",KeyZ:"jump",KeyX:"fire",KeyJ:"fire",KeyF:"fire"};
+const KEYMAP={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",Space:"jump",ArrowUp:"jump",KeyW:"jump",KeyZ:"jump",KeyX:"fire",KeyJ:"fire",KeyF:"fire",KeyC:"dash",ShiftLeft:"dash",ShiftRight:"dash",KeyK:"dash"};
 function press(k,down){
   if(k==="jump"&&down&&!keys.jump)keys.jumpPressed=true;
   if(k==="fire"&&down&&!keys.fire)keys.firePressed=true;
+  if(k==="dash"&&down&&!keys.dash)keys.dashPressed=true;
   keys[k]=down;
 }
 addEventListener("keydown",e=>{
@@ -1362,7 +1377,7 @@ $$("#pad button").forEach(b=>{
   b.addEventListener("pointerdown",on);b.addEventListener("pointerup",off);b.addEventListener("pointercancel",off);b.addEventListener("lostpointercapture",off);
   b.addEventListener("contextmenu",e=>e.preventDefault());
 });
-addEventListener("blur",()=>{for(const k of ["left","right","jump","fire"])keys[k]=false});
+addEventListener("blur",()=>{for(const k of ["left","right","jump","fire","dash"])keys[k]=false});
 function togglePause(){
   if(!running)return;paused=!paused;$("#btnPause").textContent=paused?"Resume":"Pause";
   const o=$("#ovl");
@@ -1477,6 +1492,7 @@ const ITEMS=[
   {id:"magnet",name:"Magnet Cufflinks",desc:"Nearby chips drift to you.",cost:{gold:2},once:true},
   {id:"shield",name:"Bowtie Shield",desc:"Absorbs one hit. Stack up to 3.",cost:{circ:1,intel:1}},
   {id:"medkit",name:"Field Medkit",desc:"+1 max heart and heal it. Up to 6.",cost:{gold:1,circ:1,intel:1}},
+  {id:"dash",name:"Phase Dash",desc:"Press C, Shift or DASH to burst forward. Nothing can hurt you mid-dash, lasers included. One air dash per jump.",cost:{circ:2,intel:1},once:true},
   {id:"jammer",name:"Signal Jammer",desc:"Security cameras go dark and alert builds a little slower.",cost:{circ:2},once:true}
 ];
 function renderBench(){
