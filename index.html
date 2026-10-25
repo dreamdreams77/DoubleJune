@@ -800,19 +800,54 @@ function jesperFlash(pose,boots){
 }
 // idle breathing and blinking, shared by player and title portrait
 const idlePose=f=>f%170<7?"idleB":((f>>5)&1)?"idle1":"idle";
-const GOON=[
-[".....rr.....",".....tt.....","..mmmmmmmm..",".mMMMMMMMMm.",".mMvvvvvvMm.",".mMvvvveeMm.",".mMMMMMMMMm.",".mmmmmmmmmm.","..dmmmmmmd..","..dMMMMMMd..","..dmmmmmmd..","...dd..dd...","...dd..dd...","..ddd..ddd.."],
-[".....rr.....",".....tt.....","..mmmmmmmm..",".mMMMMMMMMm.",".mMvvvvvvMm.",".mMvvvveeMm.",".mMMMMMMMMm.",".mmmmmmmmmm.","..dmmmmmmd..","..dMMMMMMd..","..dmmmmmmd..","..dd....dd..","..dd....dd..",".ddd....ddd."]];
-const PAL_G={m:"#6f7c68",M:"#93a38a",v:"#1b1e19",e:"#ff5a76",d:"#2b2f28",r:"#e04b63",t:"#3b4237"};
-const DRONE=[
-["pppp......pppp","......hh......","..cccccccccc..",".cCCCCCCCCCCc.",".cCvvveevvvCc.","..cccccccccc..","...c......c..."],
-[".pp........pp.","......hh......","..cccccccccc..",".cCCCCCCCCCCc.",".cCvvveevvvCc.","..cccccccccc..","...c......c..."]];
-const PAL_D={p:"#c9ced6",h:"#4b5360",c:"#2a2f37",C:"#4b5360",v:"#111",e:"#ff5a76"};
-const TURRET=["....kkkk....","...kKKKKk...","..kKeeKKk...","..kKKKKKkbbb","..kKKKKKk...",".kkkkkkkkk..",".kMMMMMMMk..","kMMMMMMMMMk.","kMMMMMMMMMk.","kkkkkkkkkkk."];
-const PAL_T={k:"#1f232a",K:"#5c6673",e:"#ffcf5a",b:"#2a2f37",M:"#3f4652"};
-const PAL_S={...PAL_T,K:"#7a3a5a",e:"#ff3050",M:"#4a2a3a",b:"#ff3050"};
 const CASE=["....kkkk....","....k..k....","kkkkkkkkkkkk","kBBBBBBBBBBk","kBBBBggBBBBk","kBBBBggBBBBk","kBBBBBBBBBBk","kbbbbbbbbbbk","kkkkkkkkkkkk"];
 const PAL_C={B:"#7a4a1c",b:"#5c3512",g:"#f3d07c",k:"#2a160a"};
+
+// Enemy art is drawn procedurally into small cached canvases with a 1px dark outline (same look as Jesper).
+function outlineCanvas(c){
+  const g=c.getContext("2d"),w=c.width,h=c.height,d=g.getImageData(0,0,w,h).data,a=(x,y)=>x<0||y<0||x>=w||y>=h?0:d[(y*w+x)*4+3];
+  g.fillStyle="rgba(8,6,16,.92)";
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(!a(x,y)&&(a(x-1,y)||a(x+1,y)||a(x,y-1)||a(x,y+1)))g.fillRect(x,y,1,1);
+}
+function mkSprite(key,w,h,fn){
+  if(spriteCache.has(key))return spriteCache.get(key);
+  const c=document.createElement("canvas");c.width=w+2;c.height=h+2;const g=c.getContext("2d");
+  fn((x,y,ww,hh,col)=>{g.fillStyle=col;g.fillRect(x+1,y+1,ww,hh)});outlineCanvas(c);spriteCache.set(key,c);return c;
+}
+// Security goon, facing right. ph 0..3 is the walk cycle; armor adds a steel helmet and shoulder plates.
+function goonSprite(ph,armor){
+  return mkSprite("gn"+ph+armor,12,14,R=>{
+    const bob=ph&1,la=ph===1?1:0,lb=ph===3?1:0;
+    R(6,2+bob,1,2,"#2b2f28");R(6,0+bob,2,2,"#e04b63");                      // antenna
+    R(2,3+bob,8,5,"#6f7c68");R(2,3+bob,8,1,"#93a38a");R(2,3+bob,1,5,"#93a38a");R(9,4+bob,1,4,"#4b5648"); // head
+    R(4,5+bob,6,2,"#1b1e19");R(8,5+bob,2,2,"#ff5a76");                       // visor + eye
+    R(2,8+bob,8,3,"#6f7c68");R(2,8+bob,8,1,"#93a38a");R(3,10+bob,6,1,"#4b5648");R(5,9+bob,2,1,"#2b2f28"); // body
+    R(1,8+bob,1,3,"#2b2f28");R(10,9+bob+(ph&1),2,3,"#2b2f28");               // arms
+    R(3,11+bob,2,3-bob-la,"#2b2f28");R(7,11+bob,2,3-bob-lb,"#2b2f28");       // legs
+    if(armor){R(1,2+bob,10,2,"#c9ced6");R(1,4+bob,2,4,"#aab2bc");R(9,4+bob,2,4,"#aab2bc");R(1,8+bob,10,1,"#6b7480");R(3,2+bob,4,1,"#ffffff")}
+  });
+}
+// Patrol drone: spinning rotors, a scanning red eye.
+function droneSprite(f){
+  return mkSprite("dr"+f,14,8,R=>{
+    const bl=f===0?[[0,0,5],[9,0,5]]:f===1?[[1,1,3],[10,1,3]]:[[2,0,4],[8,0,4]];
+    for(const [bx,by,bw] of bl)R(bx,by,bw,1,"#c9ced6");
+    R(2,1,1,2,"#4b5360");R(11,1,1,2,"#4b5360");
+    R(2,2,10,4,"#2a2f37");R(3,2,8,1,"#4b5360");R(3,5,8,1,"#1a1d22");
+    R(4,3,6,2,"#111");R(5+f,3,2,2,"#ff5a76");
+    R(3,6,1,2,"#4b5360");R(10,6,1,2,"#4b5360");
+  });
+}
+// Turret / sniper, facing right. hot = about to fire.
+function turretSprite(sniper,hot){
+  const c=sniper?{b:"#4a2a3a",d:"#7a3a5a",l:"#b25a82",e:hot?"#ffffff":"#ff3050"}:{b:"#3f4652",d:"#5c6673",l:"#8a94a2",e:hot?"#fff7a8":"#ffcf5a"};
+  return mkSprite("tu"+(sniper?1:0)+(hot?1:0),12,10,R=>{
+    R(0,6,12,4,c.b);R(1,6,10,1,c.l);R(0,9,12,1,"#1f232a");
+    R(2,2,7,4,c.d);R(3,2,5,1,c.l);R(3,3,3,2,c.e);
+    R(sniper?6:8,3,sniper?6:4,2,"#1f232a");if(sniper)R(3,0,4,1,c.e);
+  });
+}
+
 
 /* ---------- level generation ---------- */
 const TS=16,VW=320,VH=192,ROWS=12;
@@ -1470,11 +1505,11 @@ function draw(){
   }
   // turrets + shots
   for(const t of L.E.turrets){if(!t.alive)continue;const x=Math.round(t.x-cx),wide=t.sniper?220:20;if(x<-wide||x>VW+wide)continue;
-    if(t.sniper){blit(spr("snp",TURRET,PAL_S),x,t.y,t.face<0);
+    if(t.sniper){blit(turretSprite(true,t.charge>0),x-1,t.y-1,t.face<0);
       if(t.charge>0){const dir=t.face,x0=t.x+(dir>0?12:0);let lx=x0;for(let k=0;k<200;k+=4){if(solidAt(lx+dir*4,t.aimY))break;lx+=dir*4}
         ctx.fillStyle="rgba(255,48,80,"+(t.charge>18?(L.f%4<2?0.3:0.12):0.9)+")";ctx.fillRect(Math.round(Math.min(x0,lx)-cx),Math.round(t.aimY),Math.max(1,Math.round(Math.abs(lx-x0))),1);
         if(t.charge<=18)glow(x+(dir>0?12:0),t.y+3,10,"rgba(255,48,80,.9)",0.9)}}
-    else blit(spr("tur",TURRET,PAL_T),x,t.y,t.face<0)}
+    else blit(turretSprite(false,t.cd>0&&t.cd<14&&Math.abs(p.x-t.x)<170),x-1,t.y-1,t.face<0)}
   for(const s of L.shots){const x=Math.round(s.x-cx);if(s.wave){glow(x+4,s.y+3,12,"rgba(243,208,124,.8)",0.8);ctx.fillStyle="#8a5d18";ctx.fillRect(x,s.y,8,6);ctx.fillStyle="#f3d07c";ctx.fillRect(x+1,s.y+1,6,4);ctx.fillStyle="#e04b63";ctx.fillRect(x+3,s.y+2,2,2);continue}glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle=s.fast?"rgba(255,48,80,.4)":"rgba(255,207,90,.35)";ctx.fillRect(s.fast?(s.vx>0?x-s.vx*3:x):x-2,s.y-1,s.fast?Math.abs(s.vx)*3+6:8,5);ctx.fillStyle=s.fast?"#ff3050":"#ffcf5a";ctx.fillRect(x,s.y,s.fast?6:4,3)}
   // cameras + cones
   for(const c of L.E.cams){const x=Math.round(c.x-cx);if(x<-160||x>VW+160)continue;
@@ -1483,17 +1518,16 @@ function draw(){
     if(c.alive){ctx.fillStyle=run.gadgets.jammer?"#3a3f47":(c.see||L.f%40<20?"#e04b63":"#7a2030");ctx.fillRect(x+4,c.y+3,2,2)}}
   // goons
   for(const g of L.E.goons){const x=Math.round(g.x-cx),y=Math.round(g.y);if(x<-20||x>VW+20)continue;
-    if(!g.alive){if(g.dead<20&&g.y<ROWS*TS){blit(spr("g0",GOON[0],PAL_G),x,y,g.vx<0,1.3,0.35)}continue}
+    if(!g.alive){if(g.dead<20&&g.y<ROWS*TS){blit(goonSprite(0,0),x-1,y-1,g.vx<0,1.3,0.35)}continue}
     ctx.fillStyle="rgba(0,0,0,.25)";ctx.fillRect(x+1,y+13,10,2);
-    blit(spr("g"+(Math.floor(L.f/8)%2),GOON[Math.floor(L.f/8)%2],PAL_G),x,y,g.vx<0);
-    if(g.armor>0){ctx.fillStyle="#c9ced6";ctx.fillRect(x+1,y+1,10,2);ctx.fillRect(x+1,y+3,2,6);ctx.fillRect(x+9,y+3,2,6);ctx.fillStyle="#6b7480";ctx.fillRect(x+1,y+8,10,1);ctx.fillStyle="#fff";ctx.fillRect(x+3,y+1,3,1)}
+    blit(goonSprite(Math.abs(g.vx)>0.01?Math.floor(L.f/(g.alerted?4:7))%4:0,g.armor>0?1:0),x-1,y-1,g.vx<0);
     if(g.stun>0&&L.f%6<3){ctx.fillStyle="#ffcf5a";ctx.fillRect(x+2,y-4,2,2);ctx.fillRect(x+8,y-4,2,2)}
     if(g.alerted){ctx.fillStyle="#e04b63";ctx.fillRect(x+9,y-9,2,4);ctx.fillRect(x+9,y-4,2,1)}
   }
   for(const dr of L.E.drones){if(!dr.alive)continue;const x=Math.round(dr.x-cx),y=Math.round(dr.y);if(x<-20||x>VW+20)continue;
     {const gy=groundBelow(dr.x+7,dr.y+8);if(gy>0){const hg=gy-dr.y;ctx.fillStyle="rgba(0,0,0,"+(0.28*(1-Math.min(1,hg/120))).toFixed(2)+")";ctx.fillRect(x+3,gy-1,8,2)}}
     ctx.fillStyle="rgba(255,90,118,.12)";ctx.beginPath();ctx.moveTo(x+7,y+6);ctx.lineTo(x-3,y+40);ctx.lineTo(x+17,y+40);ctx.fill();
-    ctx.drawImage(spr("d"+(L.f>>1)%2,DRONE[(L.f>>1)%2],PAL_D),x,y-1);glow(x+7,y+4,7,"rgba(255,90,118,.9)",0.8)}
+    ctx.drawImage(droneSprite((L.f>>1)%3),x-1,y-2);glow(x+7,y+4,7,"rgba(255,90,118,.9)",0.8)}
   // rival agent
   {const A=L.agent;if(A&&(A.alive||A.dead<30)){const x=Math.round(A.x)-cx-1,y=Math.round(A.y)-1;
     let pose="idle";if(!A.onGround)pose=A.vy<0?"jump":"fall";else if(Math.abs(A.vx)>0.3)pose="r"+(Math.floor(L.f/3)%8);
@@ -1582,18 +1616,23 @@ function draw(){
     ctx.fillStyle="#f3d07c";ctx.font="10px Silkscreen,monospace";const t=L.title;ctx.fillText(t,Math.round(VW/2-ctx.measureText(t).width/2),88);
     ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.boss?"DEFEAT THE CROUPIER · CRACK THE VAULT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
 }
+function croupierSprite(f,rage,sw){
+  return mkSprite("cq"+f+rage+sw,24,35,R0=>{
+    const R=(rx,ry,w,h,c)=>R0(f>0?rx:24-rx-w,ry,w,h,c);
+    R(4,8,16,10,"#c9ced6");R(5,9,14,8,"#9aa3ae");R(5,9,14,1,"#dfe3ea");R(5,16,14,1,"#7d8794");   // head
+    R(2,5,20,3,"#1f7a4f");R(4,4,16,2,"#2fa36b");R(4,4,16,1,"#4fc78b");                           // dealer's eyeshade
+    R(7,11,10,3,"#111");R(13,12,3,1,rage?"#ffcf5a":"#ff5a76");R(6,15,1,1,"#6b7480");R(17,15,1,1,"#6b7480"); // visor + eye + rivets
+    R(9,18,6,2,"#f5ead2");R(10,18,4,1,"#e04b63");                                                // collar + bowtie
+    R(3,20,18,10,"#8a1f35");R(3,20,2,10,"#a82a47");R(19,20,2,10,"#5e1424");R(10,20,4,10,"#f5ead2");R(11,21,2,2,"#d9a441");R(11,25,2,2,"#d9a441"); // vest
+    R(0,20+sw,3,9,"#9aa3ae");R(0,20+sw,3,1,"#c9ced6");R(21,20-sw,3,9,"#9aa3ae");
+    R(21,28-sw,3,4,"#f5ead2");R(22,29-sw,1,1,"#e04b63");                                         // card in hand
+    R(5,30,5,4,"#2b2f28");R(14,30,5,4,"#2b2f28");R(5,33,5,1,"#111");R(14,33,5,1,"#111");
+  });
+}
 function drawCroupier(x,y,B){
-  const f=B.face, R=(rx,ry,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(f>0?x+rx:x+24-rx-w,y+ry,w,h)};
   ctx.fillStyle="rgba(0,0,0,.3)";ctx.fillRect(x+2,y+33,20,2);
-  R(4,8,16,10,"#c9ced6");R(5,9,14,8,"#9aa3ae");               // head
-  R(2,5,20,3,"#1f7a4f");R(4,4,16,2,"#2fa36b");                  // dealer's eyeshade
-  R(7,11,10,3,"#111");R(13,12,3,1,B.hp<=4?"#ffcf5a":"#ff5a76");  // visor + eye
-  glow(f>0?x+14:x+10,y+12,10,B.hp<=4?"rgba(255,207,90,.9)":"rgba(255,90,118,.9)",0.8);
-  R(9,18,6,2,"#f5ead2");                                         // collar
-  R(3,20,18,10,"#8a1f35");R(10,20,4,10,"#f5ead2");R(11,21,2,2,"#d9a441");R(11,25,2,2,"#d9a441"); // vest
-  const sw=Math.sin(L.f*0.15)*2|0;
-  R(0,20+sw,3,9,"#9aa3ae");R(21,20-sw,3,9,"#9aa3ae");R(21,28-sw,3,3,"#f5ead2");
-  R(5,30,5,4,"#2b2f28");R(14,30,5,4,"#2b2f28");
+  ctx.drawImage(croupierSprite(B.face>0?1:-1,B.hp<=4?1:0,Math.sin(L.f*0.15)*2|0),x-1,y-1);
+  glow(B.face>0?x+14:x+10,y+12,10,B.hp<=4?"rgba(255,207,90,.9)":"rgba(255,90,118,.9)",0.8);
 }
 
 /* ---------- title portrait ---------- */
