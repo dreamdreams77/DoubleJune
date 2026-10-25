@@ -60,6 +60,18 @@ Each hex type flavours its level: Gold fronts drop more chips and safes, Circuit
 - Raid a rival hex to take it back: +1 threat, +3 resources instead of 2, and the heist meter drops by 3.
 - A rival **agent** guards the exit of every raid. They chase you, jump, and fire fast shots along your line. It takes three stomps or darts to put them down, and the exit stays locked until they fall. Beating them pays 10 chips and drops the heist meter by 1 more.
 
+## Settings, accessibility and installing
+
+The **SETTINGS** button in the header (from the title or map screens) opens:
+
+- **Controls**: every action has three key slots you can rebind (click a slot, press the new key, Esc cancels; assigning a key that is already used moves it). P (pause) and M (mute) are fixed. The key hint under the game updates to match, and bindings are remembered.
+- **Colour vision**: Protanopia, Deuteranopia and Tritanopia modes apply a daltonisation filter to the whole game, shifting the colours you can't distinguish into ones you can.
+- **Touch controls**: Normal or Large buttons, and an option to always show the on-screen controls (for hybrid devices).
+- **Reduce screen shake and flashing**: turns off shake, damage flashes and the alarm pulse.
+- **Show tutorial hints again**: resets the one-time hints.
+
+**Installing and offline play**: when served over HTTP(S) (for example from GitHub Pages) the game registers a service worker and a web app manifest, so browsers can install it like an app and it keeps working with no connection after the first visit. The page itself is fetched network-first, so updates arrive as soon as you are back online. Open the file directly from disk and it simply runs as a normal page.
+
 ## Sound and music
 
 All audio is synthesized in the browser with the Web Audio API, so there are no sound files to download. The title and menus have a calm track, each mission theme has its own track, and the music speeds up and gets heavier when an alarm trips or the Croupier fight starts.

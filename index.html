@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1c0a13">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
 </head>
 <body>
@@ -30,6 +34,11 @@ p{margin:0}
 .hud{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:10px}
 .brand{font-family:var(--f-display);font-size:22px;color:var(--brass-hi)}
 .brand small{font-family:var(--f-pixel);font-size:10px;color:var(--muted);letter-spacing:.12em;margin-left:6px}
+html.pad-on .pad{display:flex}html.pad-on .keys{display:none}
+html.pad-lg .pad button{width:88px;height:88px;font-size:1.1em}html.pad-lg .pad button.jump{width:100px;height:100px}
+.keyrow{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(72px,1fr));gap:6px;align-items:center;margin:6px 0}
+.keyrow .btn{min-height:36px;padding:6px 8px;font-family:var(--f-pixel);font-size:11px}
+.setrow{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:8px 0}.setrow label{display:flex;gap:8px;align-items:center}
 .audio{display:flex;gap:6px;margin-left:auto}.audio .btn{font-family:var(--f-pixel);font-size:10px;letter-spacing:.08em;padding:4px 8px}.audio .btn[aria-pressed="false"]{opacity:.5;text-decoration:line-through}
 .stats{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--f-pixel);font-size:12px;font-variant-numeric:tabular-nums}
 .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--bg-2);white-space:nowrap}
@@ -171,7 +180,7 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
       <span class="pill" title="Circuits"><span class="dot circ"></span><i id="sCirc">0</i></span>
       <span class="pill" title="Intel"><span class="dot intel"></span><i id="sIntel">0</i></span>
     </div>
-    <div class="audio" role="group" aria-label="Sound settings"><button class="btn ghost small" id="btnSfx" aria-pressed="true">SFX</button><button class="btn ghost small" id="btnMus" aria-pressed="true">MUSIC</button></div>
+    <div class="audio" role="group" aria-label="Sound settings"><button class="btn ghost small" id="btnSfx" aria-pressed="true">SFX</button><button class="btn ghost small" id="btnMus" aria-pressed="true">MUSIC</button><button class="btn ghost small" id="btnSet">SETTINGS</button></div>
   </header>
 
   <!-- TITLE -->
@@ -265,6 +274,25 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
   </section>
 
   <!-- PERK PICK -->
+  <section class="screen" id="scr-settings" hidden>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between"><h2>Settings</h2><button class="btn ghost small" id="btnSetBack">Back</button></div>
+      <h3>Controls</h3>
+      <p class="muted">Click a key to change it, then press the new key. Esc cancels. P (pause) and M (mute) are fixed.</p>
+      <div id="keyTable"></div>
+      <div class="row"><button class="btn ghost small" id="btnKeysReset">Reset controls</button></div>
+      <h3>Accessibility</h3>
+      <div class="setrow">
+        <label>Colour vision <select id="setCb"><option value="off">Standard</option><option value="prot">Protanopia (red-weak)</option><option value="deut">Deuteranopia (green-weak)</option><option value="trit">Tritanopia (blue-weak)</option></select></label>
+        <label>Touch controls <select id="setPad"><option value="normal">Normal</option><option value="large">Large</option></select></label>
+      </div>
+      <div class="setrow">
+        <label><input type="checkbox" id="setPadOn"> Always show on-screen controls</label>
+        <label><input type="checkbox" id="setCalm"> Reduce screen shake and flashing</label>
+      </div>
+      <div class="row"><button class="btn ghost small" id="btnHintsReset">Show tutorial hints again</button></div>
+    </div>
+  </section>
   <section class="screen" id="scr-event" hidden>
     <div class="panel">
       <span class="label" id="evLabel">Field report</span>
@@ -478,7 +506,7 @@ const Snd=(()=>{
   return api;
 })();
 addEventListener("pointerdown",()=>Snd.init(),true);
-addEventListener("keydown",e=>{Snd.init();if(e.code==="KeyM"&&!e.repeat&&!e.ctrlKey&&!e.metaKey&&!/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||"")){Snd.toggleAll()}},true);
+addEventListener("keydown",e=>{Snd.init();if(e.code==="KeyM"&&!window.__keyCapture&&!e.repeat&&!e.ctrlKey&&!e.metaKey&&!/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||"")){Snd.toggleAll()}},true);
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("button");if(b&&b.id!=="btnSfx"&&b.id!=="btnMus")Snd.sfx("ui")});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)Snd.suspend();else Snd.resume()});
 $("#btnSfx").addEventListener("click",()=>Snd.setSfx(!Snd.pref.sfx));
@@ -1500,7 +1528,7 @@ function paintTile(c,r){if(!L.tileC)return;const g=L.tileC.getContext("2d");g.cl
   g.save();g.beginPath();g.rect(c*TS,r*TS,TS,TS);g.clip();g.globalCompositeOperation="source-atop";const bg=g.createLinearGradient(0,128,0,VH);bg.addColorStop(0,"rgba(0,0,0,0)");bg.addColorStop(1,"rgba(0,0,0,.5)");g.fillStyle=bg;g.fillRect(c*TS,r*TS,TS,TS);g.restore()}
 function draw(){
   const th=L.theme,pc=L.pcam??L.cam,camI=pc+(L.cam-pc)*ALPHA;
-  const cx=Math.round(camI)+(L.shake?((L.f%2)*2-1)*Math.min(3,L.shake/3+1):0),cxf=cx;
+  const cx=Math.round(camI)+(L.shake&&!settings.calm?((L.f%2)*2-1)*Math.min(3,L.shake/3+1):0),cxf=cx;
   drawBackdrop(cx);
   // low fog behind the play layer
   for(let k=0;k<3;k++){const fx=((-(cx*0.5)-L.f*0.15*(k+1)+k*137)%220+220)%220;ctx.fillStyle=th.fog;for(let X=fx-220;X<VW+220;X+=220){ctx.beginPath();ctx.ellipse(X,VH-36+k*6,120,14,0,0,7);ctx.fill()}}
@@ -1651,8 +1679,8 @@ function draw(){
     lctx.globalAlpha=1;lctx.globalCompositeOperation="source-over";ctx.drawImage(lightC,0,0);
     glow(pxl,pyl,46,"rgba(255,226,170,.28)",0.35)}
   ctx.drawImage(vig,0,0);
-  if(L.alarm){ctx.fillStyle="rgba(224,75,99,"+(0.07+0.05*Math.sin(L.f*0.2)).toFixed(3)+")";ctx.fillRect(0,0,VW,VH)}
-  if(L.flash){ctx.fillStyle="rgba(224,75,99,"+(L.flash/40)+")";ctx.fillRect(0,0,VW,VH)}
+  if(L.alarm){ctx.fillStyle="rgba(224,75,99,"+(0.07+(settings.calm?0:0.05*Math.sin(L.f*0.2))).toFixed(3)+")";ctx.fillRect(0,0,VW,VH)}
+  if(L.flash&&!settings.calm){ctx.fillStyle="rgba(224,75,99,"+(L.flash/40)+")";ctx.fillRect(0,0,VW,VH)}
   // training prompts and first-time hints
   {ctx.font="6px Silkscreen,monospace";
     const wrap=(t,mw)=>{const lines=[];let cur="";for(const w of t.split(" ")){const n=cur?cur+" "+w:w;if(ctx.measureText(n).width>mw&&cur){lines.push(cur);cur=w}else cur=n}if(cur)lines.push(cur);return lines};
@@ -1713,7 +1741,60 @@ function portrait(){
 requestAnimationFrame(portrait);
 
 /* ---------- input ---------- */
-const KEYMAP={ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right",Space:"jump",ArrowUp:"jump",KeyW:"jump",KeyZ:"jump",KeyX:"fire",KeyJ:"fire",KeyF:"fire",KeyC:"dash",ShiftLeft:"dash",ShiftRight:"dash",KeyK:"dash",KeyB:"bomb",KeyE:"bomb"};
+/* ---------- settings: rebindable keys, colour vision, touch size, calm mode ---------- */
+const ACTIONS=[["left","Move left"],["right","Move right"],["jump","Jump"],["fire","Fire / sap"],["dash","Dash"],["bomb","Smoke bomb"]];
+const DEFAULT_KEYS={left:["ArrowLeft","KeyA",""],right:["ArrowRight","KeyD",""],jump:["Space","KeyW","ArrowUp"],fire:["KeyX","KeyJ","KeyF"],dash:["KeyC","ShiftLeft","KeyK"],bomb:["KeyB","KeyE",""]};
+let keyBind=JSON.parse(JSON.stringify(DEFAULT_KEYS)),KEYMAP={};
+try{const k=JSON.parse(localStorage.getItem("dj-keys"));if(k)for(const [a] of ACTIONS)if(Array.isArray(k[a])&&k[a].length===3&&k[a].every(x=>typeof x==="string"))keyBind[a]=k[a]}catch(e){}
+const saveKeys=()=>{try{localStorage.setItem("dj-keys",JSON.stringify(keyBind))}catch(e){}};
+function buildKeymap(){KEYMAP={};for(const [a] of ACTIONS)for(const c of keyBind[a])if(c)KEYMAP[c]=a}
+const keyName=c=>!c?"—":c.startsWith("Key")?c.slice(3):c.startsWith("Digit")?c.slice(5):({ArrowLeft:"←",ArrowRight:"→",ArrowUp:"↑",ArrowDown:"↓",Space:"SPACE",ShiftLeft:"L-SHIFT",ShiftRight:"R-SHIFT",ControlLeft:"L-CTRL",ControlRight:"R-CTRL",AltLeft:"L-ALT",AltRight:"R-ALT",Enter:"ENTER",Tab:"TAB",Backspace:"BKSP"})[c]||c.toUpperCase();
+function updateKeysHint(){const k=a=>keyBind[a].filter(Boolean).slice(0,2).map(keyName).join(" / ")||"—";
+  $(".keys").textContent=`${k("left")} · ${k("right")} MOVE · ${k("jump")} JUMP (HOLD) · ${k("fire")} FIRE / SAP · ${k("dash")} DASH (WITH PHASE DASH) · ${k("bomb")} SMOKE BOMB · P PAUSE · M MUTE`.toUpperCase()}
+let capture=null;
+function renderKeyTable(){
+  $("#keyTable").innerHTML=ACTIONS.map(([a,label])=>`<div class="keyrow"><span>${label}</span>${keyBind[a].map((c,i)=>`<button class="btn ghost small" data-act="${a}" data-slot="${i}" ${capture&&capture.act===a&&capture.slot===i?'aria-pressed="true"':""}>${capture&&capture.act===a&&capture.slot===i?"press a key…":keyName(c)}</button>`).join("")}</div>`).join("");
+  $$("[data-act]").forEach(b=>b.addEventListener("click",()=>{capture={act:b.dataset.act,slot:+b.dataset.slot};window.__keyCapture=true;renderKeyTable()}));
+}
+addEventListener("keydown",e=>{
+  if(!capture)return;e.preventDefault();e.stopImmediatePropagation();
+  if(e.code==="Escape"){capture=null;window.__keyCapture=false;renderKeyTable();return}
+  if(e.code==="KeyP"||e.code==="KeyM"){toast("P and M are reserved for pause and mute.");return}
+  for(const [a] of ACTIONS)keyBind[a]=keyBind[a].map(c=>c===e.code?"":c);
+  keyBind[capture.act][capture.slot]=e.code;capture=null;window.__keyCapture=false;saveKeys();buildKeymap();renderKeyTable();updateKeysHint();
+},true);
+$("#btnKeysReset").addEventListener("click",()=>{keyBind=JSON.parse(JSON.stringify(DEFAULT_KEYS));capture=null;window.__keyCapture=false;saveKeys();buildKeymap();renderKeyTable();updateKeysHint();toast("Controls reset")});
+buildKeymap();updateKeysHint();
+
+const settings=Object.assign({cb:"off",pad:"normal",padOn:false,calm:false},(()=>{try{return JSON.parse(localStorage.getItem("dj-settings"))||{}}catch(e){return {}}})());
+const saveSettings=()=>{try{localStorage.setItem("dj-settings",JSON.stringify(settings))}catch(e){}};
+(function buildCbFilters(){ // daltonisation: push the colour information a viewer cannot see into channels they can
+  const I=[[1,0,0],[0,1,0],[0,0,1]],mul=(A,B)=>A.map(r=>[0,1,2].map(j=>r[0]*B[0][j]+r[1]*B[1][j]+r[2]*B[2][j]));
+  const SIM={prot:[[.567,.433,0],[.558,.442,0],[0,.242,.758]],deut:[[.625,.375,0],[.7,.3,0],[0,.3,.7]],trit:[[.95,.05,0],[0,.433,.567],[0,.475,.525]]};
+  const SHIFT={prot:[[0,0,0],[.7,1,0],[.7,0,1]],deut:[[0,0,0],[.7,1,0],[.7,0,1]],trit:[[1,.7,0],[0,0,0],[0,.7,1]]};
+  let f="";for(const k of Object.keys(SIM)){const E=I.map((r,i)=>r.map((v,j)=>v-SIM[k][i][j]),0),D=mul(SHIFT[k],E),C=I.map((r,i)=>r.map((v,j)=>v+D[i][j]));
+    f+=`<filter id="cb-${k}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${C.map(r=>r.map(v=>v.toFixed(4)).join(" ")+" 0 0").join(" ")} 0 0 0 1 0"/></filter>`}
+  const d=document.createElement("div");d.setAttribute("aria-hidden","true");d.style.cssText="position:absolute;width:0;height:0;overflow:hidden";d.innerHTML=`<svg width="0" height="0">${f}</svg>`;document.body.appendChild(d);
+})();
+function applySettings(){
+  const h=document.documentElement;h.style.filter=settings.cb==="off"?"":`url(#cb-${settings.cb})`;
+  h.classList.toggle("pad-lg",settings.pad==="large");h.classList.toggle("pad-on",!!settings.padOn);
+  if(typeof fitStage==="function"&&!$("#scr-level").hidden)fitStage();
+}
+applySettings();
+let settingsPrev="scr-title";
+$("#btnSet").addEventListener("click",()=>{
+  if(!$("#scr-level").hidden){toast("Open settings from the map or title screen.");return}
+  const cur=$$(".screen").find(x=>!x.hidden);if(cur&&cur.id!=="scr-settings")settingsPrev=cur.id;
+  $("#setCb").value=settings.cb;$("#setPad").value=settings.pad;$("#setPadOn").checked=!!settings.padOn;$("#setCalm").checked=!!settings.calm;
+  capture=null;window.__keyCapture=false;renderKeyTable();show("scr-settings");
+});
+$("#btnSetBack").addEventListener("click",()=>{capture=null;window.__keyCapture=false;show(settingsPrev);if(settingsPrev==="scr-map"&&run)renderMap();if(settingsPrev==="scr-title")renderAgency()});
+$("#setCb").addEventListener("change",e=>{settings.cb=e.target.value;saveSettings();applySettings()});
+$("#setPad").addEventListener("change",e=>{settings.pad=e.target.value;saveSettings();applySettings()});
+$("#setPadOn").addEventListener("change",e=>{settings.padOn=e.target.checked;saveSettings();applySettings()});
+$("#setCalm").addEventListener("change",e=>{settings.calm=e.target.checked;saveSettings()});
+$("#btnHintsReset").addEventListener("click",()=>{meta.hints={};saveMeta();toast("Hints will show again")});
 function press(k,down){
   if(k==="jump"&&down&&!keys.jump)keys.jumpPressed=true;
   if(k==="fire"&&down&&!keys.fire)keys.firePressed=true;
@@ -1890,6 +1971,7 @@ $("#btnStart").addEventListener("click",begin);
 $("#btnTrain").addEventListener("click",()=>{begin();run.training=true;startLevel(0,true)});
 $("#btnAgain").addEventListener("click",begin);
 renderAgency();
+if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 })();
 </script>
 
