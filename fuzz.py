@@ -48,6 +48,7 @@ hook='''window.__sim=(hex,cleared,heat,boots,raid,hearts)=>{
     press("right",right);press("jump",(L.hold||0)>0);L.hold=(L.hold||0)-1;
     press("fire",frames%20===0);}}
     step();
+    if(frames%12===0){try{draw()}catch(e){res="drawerr:"+String(e).slice(0,80);break}}
     if(L.p.x>best+1){best=L.p.x;stuck=0}else stuck++;if(frames%15===0){(L.tr=L.tr||[]).push([L.p.x|0,L.p.y|0,+L.p.vx.toFixed(1),+L.p.vy.toFixed(1),L.p.onGround?1:0,L.p.inv]);if(L.tr.length>14)L.tr.shift()}
     if(L.dying){res="dead";break}
     if(L.exiting||(!running&&$("#ovl").hidden===false)){res="clear";break}
@@ -69,7 +70,7 @@ with sync_playwright() as p:
             for cfg in cfgs:
                 for _ in range(2):
                     r=pg.evaluate("__sim(%d,%d,%d,%s,%s,%d)"%(cfg[0],cfg[1],cfg[2],str(cfg[3]).lower(),str(cfg[4]).lower(),cfg[5]))
-                    res[r["res"]]+=1
+                    res[r["res"]]=res.get(r["res"],0)+1
                     if r["res"]=="stuck":print("   stuck:",cfg,"x",r["x"],"exit",r["exit"])
                     lost.append(r["H"]-r["hearts"]);frames.append(r["frames"])
                     bd=globals().setdefault("BD",{});k=(label,cfg[2],cfg[5],cfg[3]);bd.setdefault(k,[0,0]);bd[k][1]+=1;bd[k][0]+=(r["res"]=="clear")
@@ -84,7 +85,7 @@ with sync_playwright() as p:
           for boots in [False,True]:
             pg.evaluate("begin && 0") if False else None
             r=pg.evaluate(f"__sim({hex},{cleared},{rep%6},{str(boots).lower()})")
-            n+=1; out[r["res"]]+=1; alarms+=r["alarm"]
+            n+=1; out[r["res"]]=out.get(r["res"],0)+1; alarms+=r["alarm"]
             if r["res"]!="clear": bad.append(r)
     print(n,"levels",out,"alarm rate",round(alarms/n,2))
     print("stuck by type:",{t:sum(1 for r in bad if r["type"]==t) for t in ["gold","circ","intel","vault"]})

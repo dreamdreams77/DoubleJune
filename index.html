@@ -1592,7 +1592,7 @@ function draw(){
       if(t.charge>0){const dir=t.face,x0=t.x+(dir>0?12:0);let lx=x0;for(let k=0;k<200;k+=4){if(solidAt(lx+dir*4,t.aimY))break;lx+=dir*4}
         ctx.fillStyle="rgba(255,48,80,"+(t.charge>18?(L.f%4<2?0.3:0.12):0.9)+")";ctx.fillRect(Math.round(Math.min(x0,lx)-cx),Math.round(t.aimY),Math.max(1,Math.round(Math.abs(lx-x0))),1);
         if(t.charge<=18)glow(x+(dir>0?12:0),t.y+3,10,"rgba(255,48,80,.9)",0.9)}}
-    else blit(turretSprite(false,t.cd>0&&t.cd<14&&Math.abs(p.x-t.x)<170),x-1,t.y-1,t.face<0)}
+    else blit(turretSprite(false,t.cd>0&&t.cd<14&&Math.abs(L.p.x-t.x)<170),x-1,t.y-1,t.face<0)}
   for(const s of L.shots){const x=Math.round(s.x-cx);if(s.wave){glow(x+4,s.y+3,12,"rgba(243,208,124,.8)",0.8);ctx.fillStyle="#8a5d18";ctx.fillRect(x,s.y,8,6);ctx.fillStyle="#f3d07c";ctx.fillRect(x+1,s.y+1,6,4);ctx.fillStyle="#e04b63";ctx.fillRect(x+3,s.y+2,2,2);continue}glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle=s.fast?"rgba(255,48,80,.4)":"rgba(255,207,90,.35)";ctx.fillRect(s.fast?(s.vx>0?x-s.vx*3:x):x-2,s.y-1,s.fast?Math.abs(s.vx)*3+6:8,5);ctx.fillStyle=s.fast?"#ff3050":"#ffcf5a";ctx.fillRect(x,s.y,s.fast?6:4,3)}
   // cameras + cones
   for(const c of L.E.cams){const x=Math.round(c.x-cx);if(x<-160||x>VW+160)continue;
