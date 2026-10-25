@@ -26,6 +26,7 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 | Dash (needs Phase Dash) | C, Shift or K | DASH |
 | Smoke Bomb (needs stock) | B or E | BOMB |
 | Pause | P or Esc | Pause button |
+| Mute everything | M | SFX / MUSIC buttons |
 
 - **Sap** (no Dart Pen needed): press fire next to a goon. Creep up behind one that hasn't spotted you for a silent takedown (+1 chip, and armored goons lose their plating). From the front it only stuns them for half a second.
 - **Goons** (walking bots): stomp them for 2 chips.
@@ -53,6 +54,12 @@ Each hex type flavours its level: Gold fronts drop more chips and safes, Circuit
 - Each mission, its heist meter rises by the number of hexes it holds, and by 1 more for each of its hexes that matches the dice roll. At 15 it cracks the Vault and your run is over.
 - Raid a rival hex to take it back: +1 threat, +3 resources instead of 2, and the heist meter drops by 3.
 - A rival **agent** guards the exit of every raid. They chase you, jump, and fire fast shots along your line. It takes two stomps or darts to put them down, and the exit stays locked until they fall. Beating them pays 10 chips and drops the heist meter by 1 more.
+
+## Sound and music
+
+All audio is synthesized in the browser with the Web Audio API, so there are no sound files to download. The title and menus have a calm track, each mission theme has its own track, and the music speeds up and gets heavier when an alarm trips or the Croupier fight starts.
+
+The **SFX** and **MUSIC** buttons in the header switch each one off separately, and **M** toggles both. Your choice is remembered between visits. Sound starts after your first click or key press, as browsers require, and pauses when the tab is hidden.
 
 ## Stealth and alarms
 
