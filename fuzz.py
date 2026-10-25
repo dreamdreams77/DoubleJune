@@ -1,10 +1,10 @@
 """Level fuzzer: plays ~300 generated missions with a scripted bot and reports any it cannot finish.
-Usage: pip install playwright && playwright install chromium && python tools/fuzz.py
+Usage: pip install playwright && playwright install chromium && python fuzz.py [path/to/index.html]
 """
 import sys
 from playwright.sync_api import sync_playwright
 import os, tempfile, pathlib
-ROOT=pathlib.Path(__file__).resolve().parent.parent
+ROOT=pathlib.Path(__file__).resolve().parent
 SRC=sys.argv[1] if len(sys.argv)>1 else str(ROOT/"index.html")
 TMP=tempfile.mkdtemp()
 head=''
@@ -43,7 +43,7 @@ hook='''window.__sim=(hex,cleared,heat,boots)=>{
 s=s.replace('/* ---------- flow ---------- */',hook)
 open(os.path.join(TMP,'fuzz.html'),'w').write(head+s)
 with sync_playwright() as p:
-    b=p.chromium.launch(); pg=b.new_page()
+    b=p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None); pg=b.new_page()
     errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("file://"+os.path.join(TMP,"fuzz.html")); pg.click("#btnStart")
     out={"clear":0,"stuck":0,"timeout":0}; bad=[]; n=0; alarms=0
@@ -57,5 +57,5 @@ with sync_playwright() as p:
             if r["res"]!="clear": bad.append(r)
     print(n,"levels",out,"alarm rate",round(alarms/n,2))
     print("stuck by type:",{t:sum(1 for r in bad if r["type"]==t) for t in ["gold","circ","intel","vault"]})
-    for r in [r for r in bad if r["type"]!="vault"][:3]: print(r["type"],r["d"],r["x"],"plats",r["pl"],r["ents"],"hearts lost",9999-r["hearts"]);print(r["tr"]); print(r["map"]); print()
+    for r in bad[:int(os.environ.get("SHOW","3"))]: print(r["type"],r["d"],r["x"],"plats",r["pl"],r["ents"],"hearts lost",9999-r["hearts"]);print(r["tr"]); print(r["map"]); print()
     print("ERR",errs[:5]); b.close()
