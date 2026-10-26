@@ -1031,7 +1031,7 @@ function startLevel(i,tr){
   const mod=tr||i===6?null:run.hexes[i].mod||null;
   const lv=tr?genTraining():genLevel(type,d,(run.seed^((i+1)*7919)^(run.missions*104729))>>>0,mod,i===6?false:run.hexes[i].rival);
   const wx=[];for(let k=0;k<44;k++)wx.push({x:Math.random()*VW,y:Math.random()*VH,s:Math.random()});
-  L={...lv,type,d,mod,crumb:new Map(),regrow:[],hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
+  L={...lv,type,d,mod,crumb:new Map(),regrow:[],ghosts:[],hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
     p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false,dashT:0,dashCd:0,dashAir:false,dashDir:1},safe:{x:24,y:9*TS-14}};
   run.missions++;
   L.hintQ=[];L.hintT=0;L.hintCur="";
@@ -1123,8 +1123,8 @@ function step(){
     for(let k=0;k<18;k++)L.parts.push({x:p.x+5+(Math.random()-.5)*30,y:p.y+4+(Math.random()-.5)*16,vx:(Math.random()-.5)*1.4,vy:-Math.random()*0.8,life:40,col:"rgba(205,210,222,.6)",g:0});
     pop(p.x-6,p.y-10,"SMOKE","#c9ced6");$("#btnBomb").textContent="BOMB ×"+run.bombs;$("#btnBomb").hidden=run.bombs<=0}}
   if(p.dashCd>0)p.dashCd--;
-  if(keys.dashPressed){keys.dashPressed=false;if(G.dash&&p.dashCd<=0&&!(p.dashAir&&!p.onGround)){p.dashT=11;p.dashDir=ax||p.face;p.face=p.dashDir;p.dashCd=50;if(!p.onGround)p.dashAir=true;p.inv=Math.max(p.inv,14);pop(p.x-4,p.y-8,"DASH","#7fd8ff");Snd.sfx("dash")}}
-  if(p.dashT>0){p.dashT--;p.vx=p.dashDir*4.6;p.vy=0;L.parts.push({x:p.x+5,y:p.y+7,vx:-p.dashDir*0.3,vy:0,life:12,col:"rgba(127,216,255,.55)",g:0});if(L.f%2===0)L.parts.push({x:p.x+5,y:p.y+3+Math.random()*10,vx:-p.dashDir*0.8,vy:0,life:9,col:"rgba(255,255,255,.7)",g:0})}
+  if(keys.dashPressed){keys.dashPressed=false;if(G.dash&&p.dashCd<=0&&!(p.dashAir&&!p.onGround)){p.dashT=11;p.dashDir=ax||p.face;p.face=p.dashDir;p.dashCd=50;if(!p.onGround)p.dashAir=true;p.inv=Math.max(p.inv,11);pop(p.x-4,p.y-8,"DASH","#7fd8ff");Snd.sfx("dash")}}
+  if(p.dashT>0){if(L.f%2===0)L.ghosts.push({x:p.x,y:p.y,face:p.face,life:12,pose:p.onGround?"r1":"jump"});p.dashT--;p.vx=p.dashDir*4.6;p.vy=0;L.parts.push({x:p.x+5,y:p.y+7,vx:-p.dashDir*0.3,vy:0,life:12,col:"rgba(127,216,255,.55)",g:0});if(L.f%2===0)L.parts.push({x:p.x+5,y:p.y+3+Math.random()*10,vx:-p.dashDir*0.8,vy:0,life:9,col:"rgba(255,255,255,.7)",g:0})}
   const wasGround=p.onGround, fallV=p.vy, prevBottom=p.y+p.h;
   moveBody(p);
   // land on moving platforms
@@ -1255,6 +1255,7 @@ function step(){
   }
   for(const q of L.parts){q.x+=q.vx;q.y+=q.vy;q.vy+=q.g;q.life--}
   L.parts=L.parts.filter(q=>q.life>0);
+  for(const g of L.ghosts)g.life--;L.ghosts=L.ghosts.filter(g=>g.life>0);
   for(const q of L.pops){q.y-=0.45;q.life--}
   L.pops=L.pops.filter(q=>q.life>0);
   // weather (screen space)
@@ -1401,6 +1402,11 @@ function glow(x,y,r,col,a=1){
   if(!c){c=document.createElement("canvas");c.width=c.height=r*2;const g=c.getContext("2d"),gr=g.createRadialGradient(r,r,0,r,r,r);gr.addColorStop(0,col);gr.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=gr;g.fillRect(0,0,r*2,r*2);glowCache.set(k,c)}
   ctx.save();ctx.imageSmoothingEnabled=true;ctx.globalCompositeOperation="lighter";ctx.globalAlpha=a;ctx.drawImage(c,snap(x-r),snap(y-r));ctx.restore();
 }
+const bloomC=document.createElement("canvas");bloomC.width=80;bloomC.height=48;const bctx=bloomC.getContext("2d");
+function bloom(){ // downscale, crush mid-tones, scale back up additively: bright lights bleed softly
+  bctx.save();bctx.globalCompositeOperation="copy";bctx.imageSmoothingEnabled=true;bctx.filter="contrast(1.7) brightness(.85)";bctx.drawImage(cv,0,0,VW,VH,0,0,80,48);bctx.restore();
+  ctx.save();ctx.globalCompositeOperation="lighter";ctx.globalAlpha=0.2;ctx.imageSmoothingEnabled=true;ctx.drawImage(bloomC,0,0,VW,VH);ctx.restore();
+}
 const lightC=document.createElement("canvas");lightC.width=VW;lightC.height=VH;const lctx=lightC.getContext("2d"),holeCache=new Map();
 function hole(x,y,r,a=1){
   let c=holeCache.get(r);
@@ -1413,6 +1419,59 @@ function blit(img,x,y,flip,sx=1,sy=1){
   const w=snap(img.width*sx),h=snap(img.height*sy);
   const dx=snap(x+(img.width-w)/2),dy=snap(y+img.height-h);
   if(flip){ctx.save();ctx.translate(dx+w,dy);ctx.scale(-1,1);ctx.drawImage(img,0,0,w,h);ctx.restore()}else ctx.drawImage(img,dx,dy,w,h);
+}
+// Large animated landmarks in the far backdrop, one family per theme.
+function drawLandmarks(cx){
+  const th=L.theme,sp=380,mo=cx*0.45,t=L.f,base=VH-34;
+  if(L.type==="intel"){ // a lit commuter train rolling along a far track
+    const ty=VH-60,off=Math.floor((t*0.7)%(VW+260));ctx.fillStyle=th.city;
+    for(let k=0;k<7;k++){const x=VW+40-off+k*30;if(x<-34||x>VW+4)continue;ctx.fillRect(x,ty,28,11);ctx.fillRect(x+2,ty-2,24,2);ctx.fillStyle=th.win;for(let w=3;w<26;w+=6)ctx.fillRect(x+w,ty+3,3,3);ctx.fillStyle=th.city}
+    ctx.fillRect(0,ty+11,VW,1);
+  }
+  for(let i=Math.floor(mo/sp)-1;i<Math.floor((mo+VW)/sp)+2;i++){
+    if(hash(i*29+7)%3===0)continue;
+    const x=Math.round(i*sp-mo+hash(i*3)%90),v=hash(i*5)%2;
+    ctx.fillStyle=th.city;ctx.strokeStyle=th.city;
+    if(L.type==="gold"){
+      if(v){ // ferris wheel
+        const wx=x+30,wy=base-44,r=28;ctx.lineWidth=2;ctx.beginPath();ctx.arc(wx,wy,r,0,7);ctx.stroke();ctx.lineWidth=1;
+        for(let k=0;k<8;k++){const a=k*Math.PI/4+t*0.004,gx=wx+Math.cos(a)*r,gy=wy+Math.sin(a)*r;ctx.beginPath();ctx.moveTo(wx,wy);ctx.lineTo(gx,gy);ctx.stroke();ctx.fillStyle=k%2?"#ffcf5a":"#ff7ab0";ctx.fillRect(Math.round(gx)-1,Math.round(gy)-1,3,3)}
+        ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(wx,wy);ctx.lineTo(wx-13,base);ctx.moveTo(wx,wy);ctx.lineTo(wx+13,base);ctx.stroke();ctx.lineWidth=1;
+      }else{ // neon casino sign
+        ctx.fillRect(x+12,base-70,4,70);ctx.fillRect(x+36,base-70,4,70);ctx.fillRect(x,base-86,52,20);
+        const on=((t>>4)+i)%7!==0;ctx.fillStyle="#2a0a1e";ctx.fillRect(x+3,base-83,46,14);
+        ctx.strokeStyle=on?"#ff4f9a":"#6a2a47";ctx.lineWidth=1;ctx.strokeRect(x+3.5,base-82.5,45,13);
+        ctx.fillStyle=on?"#ffe27a":"#7a6c3a";ctx.font="7px Silkscreen,monospace";ctx.fillText("CASINO",x+9,base-73);
+        if(on)glow(x+26,base-76,34,"rgba(255,79,154,.5)",0.5);
+      }
+    }else if(L.type==="circ"){
+      if(v){ // radar mast with a turning dish
+        ctx.fillRect(x+10,base-64,3,64);ctx.fillRect(x+4,base-12,15,12);
+        const w=Math.abs(Math.cos(t*0.02))*15+2;ctx.beginPath();ctx.ellipse(x+11,base-66,w,6,-0.5,0,7);ctx.fill();
+        if((t>>5)%2){ctx.fillStyle="#ff5a76";ctx.fillRect(x+10,base-72,3,3);glow(x+11,base-70,12,"rgba(255,90,118,.6)",0.6)}
+      }else{ // comms dome
+        ctx.beginPath();ctx.arc(x+20,base,20,Math.PI,0);ctx.fill();ctx.fillRect(x+19,base-34,2,14);
+        ctx.fillStyle=th.win;for(let k=0;k<5;k++)ctx.fillRect(x+9+k*5,base-9-(k%2)*5,2,2);
+      }
+    }else if(L.type==="intel"){
+      if(v){ // clock tower
+        ctx.fillRect(x,base-92,20,92);ctx.beginPath();ctx.moveTo(x-2,base-92);ctx.lineTo(x+10,base-112);ctx.lineTo(x+22,base-92);ctx.fill();
+        ctx.fillStyle="#ffe7a8";ctx.beginPath();ctx.arc(x+10,base-76,7,0,7);ctx.fill();ctx.strokeStyle="#1a1d3a";ctx.beginPath();ctx.moveTo(x+10,base-76);ctx.lineTo(x+10+Math.cos(t*0.003)*5,base-76+Math.sin(t*0.003)*5);ctx.moveTo(x+10,base-76);ctx.lineTo(x+10+Math.cos(t*0.0003)*3,base-76+Math.sin(t*0.0003)*3);ctx.stroke();
+        ctx.fillStyle=th.win;for(let k=0;k<4;k++)if(hash(i+k*7)%2)ctx.fillRect(x+8,base-58+k*13,4,6);
+        glow(x+10,base-76,16,"rgba(255,231,168,.35)",0.4);
+      }else{ // opera house with a lit dome
+        ctx.fillRect(x,base-26,64,26);ctx.beginPath();ctx.arc(x+32,base-26,16,Math.PI,0);ctx.fill();ctx.fillRect(x+31,base-50,2,8);
+        ctx.fillStyle=th.win;for(let k=0;k<6;k++)ctx.fillRect(x+6+k*9,base-18,4,9);
+      }
+    }else{ // vault: slow clockwork
+      const gx=x+30,gy=base-56,r=34;ctx.save();ctx.translate(gx,gy);ctx.rotate(t*0.003*(v?1:-1));
+      ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,r-5,0,7);ctx.stroke();ctx.lineWidth=2;
+      for(let k=0;k<12;k++){ctx.save();ctx.rotate(k*Math.PI/6);ctx.fillRect(r-6,-3,9,6);ctx.restore()}
+      for(let k=0;k<4;k++){ctx.save();ctx.rotate(k*Math.PI/2);ctx.fillRect(-2,-r+6,4,r-6);ctx.restore()}
+      ctx.restore();
+    }
+  }
+  ctx.lineWidth=1;
 }
 function drawBackdrop(cx){
   const th=L.theme;
@@ -1455,6 +1514,7 @@ function drawBackdrop(cx){
     L.sky=c}
   {const W2=L.sky.width,o=Math.floor(cx*0.32)%W2;ctx.drawImage(L.sky,-o,0);if(W2-o<VW+2)ctx.drawImage(L.sky,W2-o,0);
     if((L.f>>4)%2){ctx.fillStyle="#e04b63";for(let i=0;i<48;i++)if(hash(i*3)%4===0){let x=i*26+10-o;if(x<-4)x+=W2;if(x>-4&&x<VW+4)ctx.fillRect(x,VH-(30+hash(i)%56)-31,2,1)}}}
+  drawLandmarks(cx);
   // horizon haze: separates the far layers from the play layer
   {const hz=ctx.createLinearGradient(0,VH-125,0,VH-24);hz.addColorStop(0,"rgba("+th.haze+",0)");hz.addColorStop(1,"rgba("+th.haze+",.22)");ctx.fillStyle=hz;ctx.fillRect(0,VH-125,VW+2,101)}
   // mid props
@@ -1626,7 +1686,8 @@ function draw(){
   ctx.fillStyle="#f3d07c";for(const d of L.darts){ctx.fillRect(Math.round(d.x-cx),Math.round(d.y),5,2);ctx.fillStyle="rgba(243,208,124,.4)";ctx.fillRect(Math.round(d.x-cx-d.vx),Math.round(d.y),5,2);ctx.fillStyle="#f3d07c"}
   // player
   const p=L.p;
-  if(L.dying||L.exiting<12&&!(p.inv>0&&p.inv<=82&&L.f%6<3)){
+  for(const g of L.ghosts){ctx.globalAlpha=Math.max(0,g.life/12)*0.5;blit(jesperSprite(g.pose,run.gadgets.boots?1:0,"navy"),Math.round(g.x)-cx-2,Math.round(g.y)-3,g.face<0);ctx.globalAlpha=1}
+  if(L.dying||L.exiting<12&&!(p.inv>0&&p.inv<=82&&L.f%6<3&&!(p.dashT>0))){
     const ix=(p.ox??p.x)+(p.x-(p.ox??p.x))*ALPHA,iy=(p.oy??p.y)+(p.y-(p.oy??p.y))*ALPHA;
     const px=Math.round(ix)-cx-1,py=Math.round(iy)-1;
     let pose="idle";if(!p.onGround)pose=p.vy<0?"jump":"fall";else if(Math.abs(p.vx)>0.3)pose="r"+(Math.floor(p.anim)%8);else pose=idlePose(L.f);
@@ -1678,6 +1739,7 @@ function draw(){
     if(L.agent&&L.agent.alive)hole(L.agent.x-cx+5,L.agent.y+7,34,.8);
     lctx.globalAlpha=1;lctx.globalCompositeOperation="source-over";ctx.drawImage(lightC,0,0);
     glow(pxl,pyl,46,"rgba(255,226,170,.28)",0.35)}
+  bloom();
   ctx.drawImage(vig,0,0);
   if(L.alarm){ctx.fillStyle="rgba(224,75,99,"+(0.07+(settings.calm?0:0.05*Math.sin(L.f*0.2))).toFixed(3)+")";ctx.fillRect(0,0,VW,VH)}
   if(L.flash&&!settings.calm){ctx.fillStyle="rgba(224,75,99,"+(L.flash/40)+")";ctx.fillRect(0,0,VW,VH)}
