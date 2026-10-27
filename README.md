@@ -47,7 +47,9 @@ Your run saves automatically every time you reach the map and right after each d
 4. **Choose a dossier.** Clear a hex to own it (+2 of its resource, +1 heart), then pick one of three random perks for the rest of the run.
 5. **Spend and upgrade.** Resources go to the Gadget Bench or to **outposts**: tap a held hex and upgrade it (2 Gold, 1 Circuits, 1 Intel) so it pays double on its number. Chips go to the casino.
 6. **Hold off the rival.** After every mission the rival agency, the Obsidian Hand, takes a turn (see below).
-7. **Crack the Vault.** Hold all six hexes and the centre opens. Beat the Croupier, a card-throwing dealer bot, then reach the vault door to win.
+7. **Crack the Vault.** Hold all six hexes and the centre opens. Beat the Vault's guardian, then reach the vault door to win. Each run's guardian is one of two bosses:
+   - **The Croupier**, a card-throwing dealer bot. Stomp him. Once he is hurt, every landing sends a gold shockwave along the floor.
+   - **The Warden**, a hovering security mech. It is shielded while it patrols and fires fans of shots, then sends floor waves in both directions (jump them) and slams down. Only while it is slammed down is its core exposed: stomp it (2 damage) or dart it (1). Hit it while it hovers and you just bounce off. Below half health it fires wider fans and sends three waves.
 
 Lose all hearts, or let the rival's heist meter fill, and the run ends. Either way you earn agency XP.
 

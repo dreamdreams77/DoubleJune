@@ -13,8 +13,8 @@ SRC=sys.argv[1] if len(sys.argv)>1 else str(ROOT/"index.html")
 TMP=tempfile.mkdtemp()
 head=''
 s=open(SRC).read()
-hook='''window.__sim=(hex,cleared,heat,boots,raid,hearts)=>{
-  const H=hearts||9999;run.cleared=cleared;run.heat=heat;run.hearts=H;run.maxHearts=H;run.gadgets.boots=boots;run.gadgets.pen=true;
+hook='''window.__sim=(hex,cleared,heat,boots,raid,hearts,kind)=>{
+  const H=hearts||9999;run.cleared=cleared;run.heat=heat;run.hearts=H;run.maxHearts=H;run.gadgets.boots=boots;run.gadgets.pen=true;if(hex===6)run.seed=(run.seed&~8)|((kind!==undefined?kind:(heat&1))?8:0);
   if(raid){run.hexes[hex].rival=true;run.hexes[hex].trait=TRAIT_KEYS[(hex+cleared)%3];run.gadgets.dash=true}
   if(hex===6)run.hexes.forEach(h=>h.claimed=true);
   startLevel(hex);running=true;
@@ -56,7 +56,7 @@ hook='''window.__sim=(hex,cleared,heat,boots,raid,hearts)=>{
   }
   const c0=Math.max(0,Math.floor(L.p.x/16)-6);let map=[];for(let r=0;r<12;r++){let line="";for(let c=c0;c<c0+16&&c<L.W;c++){const pc=Math.floor((L.p.x+5)/16),pr=Math.floor((L.p.y+7)/16);line+=(c===pc&&r===pr)?"@":".#=$o"[L.tiles[r][c]]}map.push(line)}
   const pl=L.E.plats.map(m=>[m.x0/16|0,(m.x0+m.range+40)/16|0,m.y/16]).filter(m=>m[0]>c0-4&&m[0]<c0+16);
-  const near=o=>Math.abs(o.x-L.p.x)<120;const ents={goons:L.E.goons.filter(g=>g.alive&&near(g)).map(g=>[g.x|0,g.y|0]),lasers:L.E.lasers.filter(near).map(l=>l.x),turrets:L.E.turrets.filter(t=>t.alive&&near(t)).map(t=>t.x)};running=false;return {tr:L.tr,ents,map:map.join(String.fromCharCode(10)),pl,c0,res,frames,x:L.p.x|0,exit:L.exitX,W:L.W,type:L.type,d:L.d,hearts:run.hearts,H:H,alarm:L.alarmEver,kills:L.kills};
+  const near=o=>Math.abs(o.x-L.p.x)<120;const ents={goons:L.E.goons.filter(g=>g.alive&&near(g)).map(g=>[g.x|0,g.y|0]),lasers:L.E.lasers.filter(near).map(l=>l.x),turrets:L.E.turrets.filter(t=>t.alive&&near(t)).map(t=>t.x)};running=false;return {tr:L.tr,ents,map:map.join(String.fromCharCode(10)),pl,c0,res,frames,x:L.p.x|0,exit:L.exitX,W:L.W,type:L.type,d:L.d,hearts:run.hearts,H:H,kind:(L.boss&&L.boss.kind)||"",alarm:L.alarmEver,kills:L.kills};
 };'''
 s=s.replace('/* ---------- flow ---------- */',hook)
 open(os.path.join(TMP,'fuzz.html'),'w').write(head+s)
@@ -65,18 +65,18 @@ with sync_playwright() as p:
     errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("file://"+os.path.join(TMP,"fuzz.html")); pg.click("#btnStart")
     if os.environ.get("FIGHT"):
-        for label,cfgs in [("Croupier",[(6,6,h,b,False,hp) for h in (0,3,5) for b in (False,True) for hp in (3,5)]),("Raid agent",[(hx,c,h,b,True,hp) for hx in range(6) for c in (2,5) for h in (0,3) for b in (False,) for hp in (3,)])]:
+        for label,cfgs in [("Vault boss",[(6,6,h,b,False,hp,kd) for kd in (0,1) for h in (0,3,5) for b in (False,True) for hp in (3,5)]),("Raid agent",[(hx,c,h,b,True,hp) for hx in range(6) for c in (2,5) for h in (0,3) for b in (False,) for hp in (3,)])]:
             res={"clear":0,"dead":0,"stuck":0,"timeout":0};lost=[];frames=[]
             for cfg in cfgs:
                 for _ in range(2):
-                    r=pg.evaluate("__sim(%d,%d,%d,%s,%s,%d)"%(cfg[0],cfg[1],cfg[2],str(cfg[3]).lower(),str(cfg[4]).lower(),cfg[5]))
+                    r=pg.evaluate("__sim(%d,%d,%d,%s,%s,%d%s)"%(cfg[0],cfg[1],cfg[2],str(cfg[3]).lower(),str(cfg[4]).lower(),cfg[5],(","+str(cfg[6])) if len(cfg)>6 else ""))
                     res[r["res"]]=res.get(r["res"],0)+1
                     if r["res"]=="stuck":print("   stuck:",cfg,"x",r["x"],"exit",r["exit"])
                     lost.append(r["H"]-r["hearts"]);frames.append(r["frames"])
-                    bd=globals().setdefault("BD",{});k=(label,cfg[2],cfg[5],cfg[3]);bd.setdefault(k,[0,0]);bd[k][1]+=1;bd[k][0]+=(r["res"]=="clear")
+                    bd=globals().setdefault("BD",{});k=(label,r["kind"] or "-",cfg[2],cfg[5]);bd.setdefault(k,[0,0]);bd[k][1]+=1;bd[k][0]+=(r["res"]=="clear")
             n=sum(res.values());print(label,n,"fights",res,"win rate %.0f%%"%(100*res["clear"]/n),"avg hearts lost %.1f"%(sum(lost)/n),"avg frames %d"%(sum(frames)/n))
         for k,v in sorted(BD.items()):
-            if k[0]=="Croupier":print("  Croupier heat",k[1],"hearts",k[2],"boots" if k[3] else "no boots","->",v[0],"/",v[1])
+            if k[0]=="Vault boss":print("  ",k[1],"heat",k[2],"hearts",k[3],"->",v[0],"/",v[1])
         print("ERR",errs[:5]); b.close(); sys.exit(0)
     out={"clear":0,"stuck":0,"timeout":0}; bad=[]; n=0; alarms=0
     for rep in range(6):

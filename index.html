@@ -1081,7 +1081,11 @@ function genLevel(type,d,seed,mod,raid,trait,adapt){
   else{let c=Math.floor(Wf*0.6);while(c<Wf-8&&h[c]<0)c++;E.cases.push({x:c*TS+2,y:h[c]*TS-9,w:12,h:9,taken:false})}
   // boss
   let boss=null;
-  if(type==="vault")boss={x:(Wf-14)*TS,y:g*TS-34,w:24,h:34,vx:0,vy:0,hp:run.heat>=5?12:8,max:run.heat>=5?12:8,inv:0,cd:90,jcd:160,alive:true,face:-1,minX:arenaX+16,maxX:(Wf-7)*TS,onGround:false,hitWall:false,dead:0};
+  if(type==="vault"){
+    if(((run.seed>>>3)&1)===1){const hp=run.heat>=5?14:10;
+      boss={kind:"warden",x:(Wf-16)*TS,y:g*TS-100,w:28,h:30,vx:0,vy:0,hp,max:hp,inv:0,alive:true,face:-1,state:"patrol",t:0,groundY:g*TS-30,hover:g*TS-100,minX:arenaX+16,maxX:(Wf-9)*TS,onGround:false,hitWall:false,dead:0,shieldT:0}}
+    else boss={kind:"croupier",x:(Wf-14)*TS,y:g*TS-34,w:24,h:34,vx:0,vy:0,hp:run.heat>=5?12:8,max:run.heat>=5?12:8,inv:0,cd:90,jcd:160,alive:true,face:-1,minX:arenaX+16,maxX:(Wf-7)*TS,onGround:false,hitWall:false,dead:0};
+  }
   let agent=null;
   if(raid&&type!=="vault")agent={x:(Wf-10)*TS,y:g*TS-14,w:10,h:14,vx:0,vy:0,hp:3,inv:0,cd:60,stun:0,face:-1,alive:true,onGround:false,hitWall:false,dead:0,minX:arenaX,maxX:(Wf-7)*TS};
   return {W:Wf,agent,tiles:T,E,boss,exitX:(Wf-5)*TS,exitY:g*TS,arenaX,par:Math.ceil(Wf*TS/2.1/60*2),chipTotal:E.chips.length};
@@ -1272,7 +1276,7 @@ function step(){
     else if(Math.abs(dx)<170&&Math.abs(p.y-t.y)<60){if(--t.cd<=0){t.cd=110-L.d*6;L.shots.push({x:t.x+(t.face>0?12:-4),y:t.y+3,w:4,h:3,vx:t.face*2.2,life:120});Snd.sfx("shot");burst(t.x+(t.face>0?12:0),t.y+4,"#ffcf5a",3,1)}}
     if(overlap(p,t)){if(p.vy>0&&p.y+p.h-t.y<8){t.alive=false;p.vy=-4.5;L.freeze=3;burst(t.x+6,t.y+5,"#ffcf5a",12);ring(t.x+6,t.y+5,"#ffe08a");addChips(takedown(t.sniper?5:3),t.x,t.y-6)}else hurt(false)}
   }
-  for(const s of L.shots){s.x+=s.vx;s.life--;if(solidAt(s.x+2,s.y+1))s.life=0;if(s.life>0&&overlap(p,s)){s.life=0;hurt(false)}}
+  for(const s of L.shots){s.x+=s.vx;s.y+=s.vy||0;s.life--;if(solidAt(s.x+2,s.y+1))s.life=0;if(s.life>0&&overlap(p,s)){s.life=0;hurt(false)}}
   L.shots=L.shots.filter(s=>s.life>0);
   const tuned=has("tuned")?60:0;
   for(const lz of L.E.lasers){
@@ -1295,7 +1299,8 @@ function step(){
   for(const c of L.E.cases)if(!c.taken&&overlap(p,c)){c.taken=true;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]++;run.briefcases++;stat("cases");Snd.sfx("case");hud();pop(c.x-14,c.y-6,"INTEL: +1 "+RES[k].name.toUpperCase(),"#97a9ff");burst(c.x+6,c.y,"#97a9ff",14);L.gotCase=k}
   // boss
   const B=L.boss;
-  if(B&&B.alive){
+  if(B&&B.alive&&B.kind==="warden")wardenStep(B,p);
+  else if(B&&B.alive){
     const near=p.x>L.arenaX-60;
     if(B.inv>0)B.inv--;
     if(near){
@@ -1341,7 +1346,7 @@ function step(){
     for(const t of L.E.turrets)if(t.alive&&overlap(dt,t)){t.alive=false;hit();burst(t.x+6,t.y+5,"#ffcf5a");ring(t.x+6,t.y+5,"#ffe08a");addChips(takedown(t.sniper?5:3),t.x,t.y-6)}
     for(const c of L.E.cams)if(c.alive&&overlap(dt,c)){c.alive=false;dt.life=0;burst(c.x+5,c.y+3,"#c9ced6",8)}
     if(L.agent&&L.agent.alive&&L.agent.inv<=0&&overlap(dt,L.agent)){dt.life=0;hitAgent(L.agent)}
-    if(B&&B.alive&&B.inv<=0&&overlap(dt,B)){Snd.sfx("bosshit");B.hp-=1;B.inv=20;dt.life=0;burst(dt.x,dt.y,"#f3d07c",6);if(B.hp<=0)killBoss()}
+    if(B&&B.alive&&B.inv<=0&&overlap(dt,B)){dt.life=0;if(B.kind==="warden"&&B.state!=="stun"){B.shieldT=10;Snd.sfx("clank");burst(dt.x,dt.y,"#7fd8ff",5)}else{Snd.sfx("bosshit");B.hp-=1;B.inv=20;burst(dt.x,dt.y,"#f3d07c",6);if(B.hp<=0)killBoss()}}
   }
   L.darts=L.darts.filter(d=>d.life>0);
   for(const c of L.E.chips){
@@ -1370,7 +1375,7 @@ function step(){
   if(L.alarm&&L.f%30===0)Snd.sfx("alarm");Snd.mood(L.alarm?2:(L.boss&&L.boss.alive&&p.x>L.arenaX-80)?1:0);
   if(L.shake>0)L.shake--;if(L.flash>0)L.flash--;
   const target=p.x-VW*0.42+clamp(p.vx*9,-18,18);L.cam+=(target-L.cam)*0.15;L.cam=clamp(L.cam,0,L.W*TS-VW);
-  if(p.x+p.w>L.exitX+6){if((L.boss&&L.boss.alive)||(L.agent&&L.agent.alive)){p.x=L.exitX+6-p.w;p.vx=0;if(L.f%60===0)pop(p.x-20,p.y-8,L.boss&&L.boss.alive?"BEAT THE CROUPIER":"DEFEAT THE AGENT","#e04b63")}else{L.exiting=1;burst(L.exitX+11,L.exitY-16,"#f3d07c",14,2)}}
+  if(p.x+p.w>L.exitX+6){if((L.boss&&L.boss.alive)||(L.agent&&L.agent.alive)){p.x=L.exitX+6-p.w;p.vx=0;if(L.f%60===0)pop(p.x-20,p.y-8,L.boss&&L.boss.alive?(L.boss.kind==="warden"?"BEAT THE WARDEN":"BEAT THE CROUPIER"):"DEFEAT THE AGENT","#e04b63")}else{L.exiting=1;burst(L.exitX+11,L.exitY-16,"#f3d07c",14,2)}}
 }
 function tripAlarm(){
   Snd.sfx("alarmstart");stat("alarms");if(run.mut==="ghost"&&run.hearts>1){run.hearts--;L.hurtT=26;hud()}L.alarm=true;L.alarmEver=true;L.alert=100;run.alarms++;L.shake=10;pop(L.p.x-14,L.p.y-14,"ALARM!","#e04b63");
@@ -1392,10 +1397,39 @@ function hitAgent(A){
   if(A.hp<=0){A.alive=false;stat("agents");L.shake=14;L.freeze=8;burst(A.x+5,A.y+6,"#e04b63",16,4);run.heist=Math.max(0,run.heist-1);addChips(10,A.x,A.y-10);pop(A.x-14,A.y-22,"AGENT DOWN · HEIST −1","#7fd8ff")}
   else pop(A.x-4,A.y-12,"HIT","#7fd8ff");
 }
+// The Warden: shielded while it patrols and fires fans of shots, sends floor waves, then slams down
+// and exposes its core for a short window. Only the exposed core can be hurt.
+function wardenStep(B,p){
+  const near=p.x>L.arenaX-60,half=B.hp<=B.max/2,floorTop=B.groundY+B.h;
+  if(B.inv>0)B.inv--;if(B.shieldT>0)B.shieldT--;B.t++;B.onGround=B.state==="stun";
+  if(!near){B.y+=(B.hover-B.y)*0.05}
+  else if(B.state==="patrol"){
+    B.face=p.x<B.x?-1:1;B.x=clamp(B.x+clamp((p.x-B.x)*0.02,-0.9,0.9),B.minX,B.maxX);B.y+=(B.hover+Math.sin(L.f*0.07)*4-B.y)*0.1;
+    if(B.t%(half?55:75)===0){const n=half?5:3;for(let k=0;k<n;k++){const a=(k-(n-1)/2)*0.38;L.shots.push({x:B.x+B.w/2-2,y:B.y+B.h-6,w:5,h:3,vx:Math.sin(a)*1.7,vy:Math.cos(a)*1.7,life:140})}Snd.sfx("shot")}
+    if(B.t>(half?200:260)){B.state="charge";B.t=0;pop(B.x-4,B.y-10,"SWEEP","#7fd8ff");Snd.sfx("alarmstart")}
+  }else if(B.state==="charge"){
+    B.y+=(B.hover-6-B.y)*0.1;
+    if(B.t===30||(half&&(B.t===60||B.t===90))){for(const dd of [-1,1])L.shots.push({x:B.x+B.w/2-10,y:floorTop-10,w:20,h:10,vx:dd*2.6,life:170,wave:true,c1:"#1b4a6a",c2:"#7fd8ff",c3:"#ffffff"});Snd.sfx("snipe")}
+    if(B.t>(half?120:70)){B.state="slam";B.t=0;B.vy=0}
+  }else if(B.state==="slam"){
+    B.vy=Math.min(B.vy+0.55,9);B.y+=B.vy;
+    if(B.y>=B.groundY){B.y=B.groundY;B.vy=0;B.state="stun";B.t=0;L.shake=14;Snd.sfx("thud");dust(B.x+14,floorTop,12);pop(B.x-6,B.y-10,"HIT THE CORE","#ffcf5a")}
+  }else if(B.state==="stun"){
+    B.y=B.groundY;if(B.t>(half?120:150)){B.state="rise";B.t=0}
+  }else if(B.state==="rise"){
+    B.y-=2.2;if(B.y<=B.hover){B.y=B.hover;B.state="patrol";B.t=0}
+  }
+  if(overlap(p,B)){
+    if(p.vy>0&&p.y+p.h-B.y<12&&B.inv<=0){
+      if(B.state==="stun"){Snd.sfx("bosshit");B.hp-=2;B.inv=40;p.vy=-6.5;L.freeze=6;L.shake=8;burst(B.x+14,B.y+6,"#ffcf5a",16);if(B.hp<=0)killBoss()}
+      else{p.vy=-5;L.freeze=3;B.shieldT=14;Snd.sfx("clank");pop(B.x+2,B.y-8,"SHIELDED","#7fd8ff")}
+    }else if(B.inv<=20)hurt(false);
+  }
+}
 function killBoss(){
-  const B=L.boss;Snd.sfx("bosskill");stat("bosses");B.alive=false;L.shake=24;L.freeze=10;L.cards=[];
+  const B=L.boss;Snd.sfx("bosskill");stat("bosses");B.alive=false;L.shake=24;L.freeze=10;L.cards=[];L.shots=L.shots.filter(s=>!s.wave);
   for(let k=0;k<4;k++)burst(B.x+Math.random()*24,B.y+Math.random()*34,["#f3d07c","#e04b63","#f5ead2"][k%3],14,4);
-  addChips(30,B.x,B.y-10);pop(B.x-10,B.y-20,"THE HOUSE FOLDS","#f3d07c");
+  addChips(30,B.x,B.y-10);pop(B.x-10,B.y-20,B.kind==="warden"?"SYSTEM OFFLINE":"THE HOUSE FOLDS","#f3d07c");
 }
 function hint(id,text){if(!run||run.training||meta.hints[id])return;meta.hints[id]=1;saveMeta();L.hintQ.push(text)}
 function checkHints(p){
@@ -1418,7 +1452,7 @@ function checkHints(p){
     for(const sp of L.E.springs)if(near(sp,170))mark("spring");
     if(L.crumb.size)mark("plank");
     if(L.agent&&L.agent.alive&&near(L.agent,230))mark("agent");
-    if(L.boss&&L.boss.alive&&near(L.boss,260))mark("croupier");
+    if(L.boss&&L.boss.alive&&near(L.boss,260)){mark(L.boss.kind||"croupier");if(L.boss.kind==="warden")hint("warden","THE WARDEN IS SHIELDED. JUMP ITS FLOOR WAVES, THEN HIT THE GLOWING CORE WHEN IT SLAMS DOWN")}
     if(nu.length)toast("Field guide updated: "+nu.join(", "))}
   if(!G.pen)for(const g of L.E.goons)if(g.alive&&!g.alerted&&near(g,56)&&Math.abs(g.y-p.y)<12){hint("sap","NO DART PEN YET? PRESS X NEXT TO A GOON. FROM BEHIND IT IS A SILENT TAKEDOWN");break}
   for(const g of L.E.goons)if(g.alive&&g.armor>0&&near(g,150)){hint("armor","ARMORED GOON: ONE HIT STRIPS THE ARMOR AND STUNS IT. HIT IT AGAIN TO FINISH");break}
@@ -1777,7 +1811,7 @@ function draw(){
         ctx.fillStyle="rgba(255,48,80,"+(t.charge>18?(L.f%4<2?0.3:0.12):0.9)+")";ctx.fillRect(Math.round(Math.min(x0,lx)-cx),Math.round(t.aimY),Math.max(1,Math.round(Math.abs(lx-x0))),1);
         if(t.charge<=18)glow(x+(dir>0?12:0),t.y+3,10,"rgba(255,48,80,.9)",0.9)}}
     else blit(turretSprite(false,t.cd>0&&t.cd<14&&Math.abs(L.p.x-t.x)<170),x-1,t.y-1,t.face<0)}
-  for(const s of L.shots){const x=Math.round(s.x-cx);if(s.wave){glow(x+4,s.y+3,12,"rgba(243,208,124,.8)",0.8);ctx.fillStyle="#8a5d18";ctx.fillRect(x,s.y,8,6);ctx.fillStyle="#f3d07c";ctx.fillRect(x+1,s.y+1,6,4);ctx.fillStyle="#e04b63";ctx.fillRect(x+3,s.y+2,2,2);continue}glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle=s.fast?"rgba(255,48,80,.4)":"rgba(255,207,90,.35)";ctx.fillRect(s.fast?(s.vx>0?x-s.vx*3:x):x-2,s.y-1,s.fast?Math.abs(s.vx)*3+6:8,5);ctx.fillStyle=s.fast?"#ff3050":"#ffcf5a";ctx.fillRect(x,s.y,s.fast?6:4,3)}
+  for(const s of L.shots){const x=Math.round(s.x-cx);if(s.wave){const ww=s.w>8?s.w:8,hh=s.h>6?s.h:6;glow(x+ww/2,s.y+hh/2,s.w>8?18:12,s.c2?"rgba(127,216,255,.8)":"rgba(243,208,124,.8)",0.8);ctx.fillStyle=s.c1||"#8a5d18";ctx.fillRect(x,s.y,ww,hh);ctx.fillStyle=s.c2||"#f3d07c";ctx.fillRect(x+1,s.y+1,ww-2,hh-2);ctx.fillStyle=s.c3||"#e04b63";ctx.fillRect(x+3,s.y+2,2,2);continue}glow(x+2,s.y+1,8,"rgba(255,207,90,.8)",0.8);ctx.fillStyle=s.fast?"rgba(255,48,80,.4)":"rgba(255,207,90,.35)";ctx.fillRect(s.fast?(s.vx>0?x-s.vx*3:x):x-2,s.y-1,s.fast?Math.abs(s.vx)*3+6:8,5);ctx.fillStyle=s.fast?"#ff3050":"#ffcf5a";ctx.fillRect(x,s.y,s.fast?6:4,3)}
   // cameras + cones
   for(const c of L.E.cams){const x=Math.round(c.x-cx);if(x<-160||x>VW+160)continue;
     if(c.alive&&!run.gadgets.jammer){const a=c.ang,ox=x+5,oy=c.y+6;ctx.fillStyle=c.see?"rgba(224,75,99,.26)":"rgba(255,231,168,.11)";ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(ox+Math.cos(a-0.16)*150,oy+Math.sin(a-0.16)*150);ctx.lineTo(ox+Math.cos(a+0.16)*150,oy+Math.sin(a+0.16)*150);ctx.fill()}
@@ -1895,7 +1929,7 @@ function draw(){
   const os=objState();if(os){ctx.fillStyle="rgba(0,0,0,.45)";const tw=ctx.measureText(os.txt).width;ctx.fillRect(VW-tw-12,4,tw+8,10);ctx.fillStyle=os.ok?"#3cc4b2":"#ff9aab";ctx.fillText(os.txt,VW-tw-8,11)}
   if(B&&B.alive&&p.x>L.arenaX-80){
     ctx.fillStyle="rgba(0,0,0,.55)";ctx.fillRect(80,174,160,12);ctx.fillStyle="#3a1020";ctx.fillRect(82,180,156,4);ctx.fillStyle="#e04b63";ctx.fillRect(82,180,Math.round(156*B.hp/B.max),4);
-    ctx.fillStyle="#f3d07c";ctx.font="6px Silkscreen,monospace";ctx.fillText("THE CROUPIER",84,178);
+    ctx.fillStyle="#f3d07c";ctx.font="6px Silkscreen,monospace";ctx.fillText(B.kind==="warden"?"THE WARDEN":"THE CROUPIER",84,178);
   }
   // iris wipe
   {const pr=L.p,ix=Math.round(pr.x-cx)+5,iy=Math.round(pr.y)+7;let ir=1;
@@ -1904,7 +1938,7 @@ function draw(){
   // intro banner
   if(L.f<110){const a=L.f<90?1:1-(L.f-90)/20;ctx.globalAlpha=a;ctx.fillStyle="rgba(22,10,16,.8)";ctx.fillRect(0,70,VW,40);ctx.fillStyle="#d9a441";ctx.fillRect(0,70,VW,1);ctx.fillRect(0,109,VW,1);
     ctx.fillStyle="#f3d07c";ctx.font="10px Silkscreen,monospace";const t=L.title;ctx.fillText(t,Math.round(VW/2-ctx.measureText(t).width/2),88);
-    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.boss?"DEFEAT THE CROUPIER · CRACK THE VAULT":L.ambush?"AMBUSH! A RIVAL AGENT GUARDS THE EXIT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
+    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.boss?(L.boss.kind==="warden"?"DEFEAT THE WARDEN":"DEFEAT THE CROUPIER")+" · CRACK THE VAULT":L.ambush?"AMBUSH! A RIVAL AGENT GUARDS THE EXIT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
 }
 function croupierSprite(f,rage,sw){
   return mkSprite("cq"+f+rage+sw,24,35,R0=>{
@@ -1919,7 +1953,27 @@ function croupierSprite(f,rage,sw){
     R(5,30,5,4,"#2b2f28");R(14,30,5,4,"#2b2f28");R(5,33,5,1,"#111");R(14,33,5,1,"#111");
   });
 }
+function wardenSprite(vuln){
+  return mkSprite("wd"+(vuln?1:0),28,30,R=>{
+    R(0,12,5,9,"#3f4652");R(23,12,5,9,"#3f4652");R(0,19,3,6,"#1f232a");R(25,19,3,6,"#1f232a");
+    R(4,10,20,14,"#5c6673");R(4,10,20,2,"#8a94a2");R(4,22,20,2,"#2a2f37");R(4,12,2,10,"#7d8794");R(22,12,2,10,"#3f4652");
+    R(8,2,12,9,"#7d8794");R(9,3,10,2,"#aab2bc");R(10,6,8,3,"#111");R(12,7,4,1,"#ff5a76");R(7,5,1,3,"#3f4652");R(20,5,1,3,"#3f4652");
+    R(11,13,6,6,vuln?"#8a5d18":"#3a1420");R(12,14,4,4,vuln?"#fff7a8":"#7a2030");
+    R(7,24,5,5,"#2a2f37");R(16,24,5,5,"#2a2f37");R(7,28,5,2,"#1f232a");R(16,28,5,2,"#1f232a");
+  });
+}
+function drawWarden(x,y,B){
+  const vuln=B.state==="stun",floor=Math.round(B.groundY+B.h),hg=Math.max(0,floor-(y+B.h));
+  ctx.fillStyle="rgba(0,0,0,"+(0.32*(1-Math.min(1,hg/90))).toFixed(2)+")";ctx.fillRect(x+3,floor-1,22,2);
+  if(!vuln){ctx.fillStyle=(L.f>>1)%2?"#7fd8ff":"#ffffff";const fl=3+((L.f>>1)%3);ctx.fillRect(x+8,y+B.h,3,fl);ctx.fillRect(x+17,y+B.h,3,fl)}
+  ctx.drawImage(wardenSprite(vuln),x-1,y-1);
+  if(!vuln&&B.shieldT>0){ctx.strokeStyle="rgba(127,216,255,"+(B.shieldT/14).toFixed(2)+")";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x+14,y+15,19,19,0,0,7);ctx.stroke();ctx.lineWidth=1}
+  glow(x+14,y+8,10,"rgba(255,90,118,.8)",0.8);
+  if(vuln)glow(x+14,y+16,20,"rgba(255,207,90,.9)",0.5+0.4*Math.sin(L.f*0.3));
+  else if(B.state==="charge"&&(L.f>>2)%2)glow(x+14,y+16,24,"rgba(127,216,255,.8)",0.8);
+}
 function drawCroupier(x,y,B){
+  if(B.kind==="warden"){drawWarden(x,y,B);return}
   ctx.fillStyle="rgba(0,0,0,.3)";ctx.fillRect(x+2,y+33,20,2);
   ctx.drawImage(croupierSprite(B.face>0?1:-1,B.hp<=4?1:0,Math.sin(L.f*0.15)*2|0),x-1,y-1);
   glow(B.face>0?x+14:x+10,y+12,10,B.hp<=4?"rgba(255,207,90,.9)":"rgba(255,90,118,.9)",0.8);
@@ -2177,7 +2231,8 @@ const ENEMY_INFO={
   spring:{name:"Spring pad",desc:"Launches you high. A trail of chips marks the arc."},
   plank:{name:"Plank bridge",desc:"Drops soon after you stand on it, and grows back later."},
   agent:{name:"Rival agent",desc:"Guards the exit of a raid. Chases, jumps and fires fast shots."},
-  croupier:{name:"The Croupier",desc:"The Vault boss. Throws cards, and sends shockwaves once hurt."}
+  croupier:{name:"The Croupier",desc:"A Vault boss. Throws cards, and sends shockwaves once hurt."},
+  warden:{name:"The Warden",desc:"A Vault boss. A hovering mech that stays shielded until it slams down, then exposes its core."}
 };
 function renderStats(){
   const st=meta.stats,g=k=>st[k]||0,rank=RANKS[rankOf(meta.xp)];
