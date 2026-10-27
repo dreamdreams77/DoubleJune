@@ -77,6 +77,16 @@ Each hex type flavours its level: Gold fronts drop more chips and safes, Circuit
 - Each mission, its heist meter rises by the number of hexes it holds, and by 1 more for each of its hexes that matches the dice roll. At 15 it cracks the Vault and your run is over.
 - Raid a rival hex to take it back: +1 threat, +3 resources instead of 2, and the heist meter drops by 3.
 - A rival **agent** guards the exit of every raid. They chase you, jump, and fire fast shots along your line. It takes three stomps or darts to put them down, and the exit stays locked until they fall. Beating them pays 10 chips and drops the heist meter by 1 more.
+- Every hex the rival seizes gets a **trait**, shown on the map (FORT, NEST or SPY) and in the brief:
+
+| Trait | While the rival holds it | Retaking it pays |
+|---|---|---|
+| Fortified | Its guards wear armor and the approach is one threat harder | +2 resources |
+| Sniper nest | Snipers cover the approach | +15 chips and +1 Intel |
+| Spy ring | Adds +1 to the heist meter every turn | Heist meter −2 more |
+
+- **The rival adapts to your kit.** Carry the Dart Pen and raid levels fill with armored guards, carry the Signal Jammer and they add drones, carry Phase Dash and they add snipers. The brief tells you what to expect.
+- **Ambushes.** Once the rival holds two or more hexes, an ordinary mission can turn out to be an ambush: a rival agent guards its exit, just like a raid. The brief shows the chance (about 15% with two hexes, rising to about 36% with five, and more at Heat 3 and above).
 
 ## Settings, accessibility and installing
 

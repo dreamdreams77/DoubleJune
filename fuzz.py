@@ -15,7 +15,7 @@ head=''
 s=open(SRC).read()
 hook='''window.__sim=(hex,cleared,heat,boots,raid,hearts)=>{
   const H=hearts||9999;run.cleared=cleared;run.heat=heat;run.hearts=H;run.maxHearts=H;run.gadgets.boots=boots;run.gadgets.pen=true;
-  if(raid)run.hexes[hex].rival=true;
+  if(raid){run.hexes[hex].rival=true;run.hexes[hex].trait=TRAIT_KEYS[(hex+cleared)%3];run.gadgets.dash=true}
   if(hex===6)run.hexes.forEach(h=>h.claimed=true);
   startLevel(hex);running=true;
   let stuck=0,best=0,frames=0,res="timeout";
@@ -84,7 +84,7 @@ with sync_playwright() as p:
         for cleared in ([0,2,4,6] if hex<6 else [6]):
           for boots in [False,True]:
             pg.evaluate("begin && 0") if False else None
-            r=pg.evaluate(f"__sim({hex},{cleared},{rep%6},{str(boots).lower()})")
+            r=pg.evaluate(f"__sim({hex},{cleared},{rep%6},{str(boots).lower()},{str(hex<6 and rep%2==1).lower()})")
             n+=1; out[r["res"]]=out.get(r["res"],0)+1; alarms+=r["alarm"]
             if r["res"]!="clear": bad.append(r)
     print(n,"levels",out,"alarm rate",round(alarms/n,2))

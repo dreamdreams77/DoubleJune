@@ -238,6 +238,7 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
         <h2 id="mName">Pick a hex</h2>
         <p class="muted" id="mDesc">Choose any glowing hex to start. After that you can only move to hexes next to ones you hold, including rival hexes. Tap a held hex to upgrade it.</p>
         <p class="obj" id="mObj" hidden></p>
+        <p class="obj" id="mRival" hidden></p>
         <dl class="kv" id="mKV" hidden>
           <dt>Pays</dt><dd id="mRes"></dd>
           <dt>Number</dt><dd id="mNum"></dd>
@@ -580,6 +581,16 @@ const KITS=[
 const HEATS=["Standard rules.","Heat 1: every mission is +1 threat.","Heat 2: from turn 4 the rival moves every mission.","Heat 3: start with 2 hearts.","Heat 4: alarms bring double reinforcements and alert builds faster.","Heat 5: the Croupier has 12 HP and the heist meter is shorter."];
 const OBJ={ghost:"Ghost: finish without tripping the alarm.",pacifist:"Clean hands: no takedowns.",speed:"Fast exit: beat the par time.",collector:"Bagman: collect 75% of the chips.",briefcase:"Courier: find the hidden briefcase."};
 const OBJ_KEYS=Object.keys(OBJ);
+// Rival hexes carry a trait, and the rival adapts to the gadgets you carry.
+const TRAITS={
+  fortified:{name:"Fortified",tag:"FORT",desc:"Its guards wear armor and the approach is one threat harder.",reward:"Retaking it pays +2 resources."},
+  nest:{name:"Sniper nest",tag:"NEST",desc:"Snipers cover the approach.",reward:"Retaking it pays +15 chips and +1 Intel."},
+  spy:{name:"Spy ring",tag:"SPY",desc:"Feeds the heist meter +1 extra each turn while the rival holds it.",reward:"Retaking it cuts the heist meter by 2 more."}
+};
+const TRAIT_KEYS=Object.keys(TRAITS);
+const rivalAdapt=()=>({armor:!!run.gadgets.pen,drones:!!run.gadgets.jammer,snipers:!!run.gadgets.dash});
+const adaptLines=()=>{const a=rivalAdapt(),l=[];if(a.armor)l.push("armored guards (they know about your Dart Pen)");if(a.drones)l.push("extra drones (they know about your Signal Jammer)");if(a.snipers)l.push("extra snipers (they know about Phase Dash)");return l};
+const ambushChance=()=>{const rc=run.hexes.filter(x=>x.rival).length;return rc<2?0:Math.min(0.5,0.15+0.07*(rc-2)+(run.heat>=3?0.1:0))};
 const MODS={
   blackout:{name:"Blackout",tag:"DARK",desc:"The power is out. Cameras are dead, but you can only see a small circle around you."},
   rush:{name:"Gold Rush",tag:"RUSH",desc:"Twice the chips lying around, and far more goons guarding them."},
@@ -690,7 +701,7 @@ function rivalInterval(){let n=2;if(has("double"))n=3;if(run.heat>=2&&run.turn>=
 function rivalTurn(){
   run.turn++;
   const rh=run.hexes.filter(h=>h.rival);
-  const gain=has("insideman")?Math.floor(rh.length/2):rh.length;
+  const base=rh.reduce((a,h)=>a+1+(h.trait==="spy"?1:0),0),gain=has("insideman")?Math.floor(base/2):base;
   run.heist+=gain;
   const tail=gain?` Heist +${gain}.`:"";
   if(run.turn%rivalInterval()!==0){run.report=(rh.length?`The Obsidian Hand works its ${rh.length} hex${rh.length>1?"es":""}.`:"The Obsidian Hand is regrouping.")+tail+` Next move in ${rivalInterval()-run.turn%rivalInterval()} mission${rivalInterval()-run.turn%rivalInterval()>1?"s":""}.`;return}
@@ -703,8 +714,9 @@ function rivalTurn(){
   else{const mine=run.hexes.filter(h=>h.claimed&&!h.outpost),near=mine.filter(h=>adjR(h.i)),list=near.length?near:mine;
     if(list.length){target=list[Math.floor(Math.random()*list.length)];attack=true}}
   if(!target){run.heist+=2;run.report="Every hex you hold is an outpost, so the Obsidian Hand pours everything into the heist."+` Heist +${gain+2}.`;return}
-  target.claimed=false;target.rival=true;
-  run.report=attack?`The Obsidian Hand seized your hex ${target.name}. Outposts can't be taken.`+tail:`The Obsidian Hand seized ${target.name}.`+tail;
+  target.claimed=false;target.rival=true;target.trait=TRAIT_KEYS[Math.floor(Math.random()*TRAIT_KEYS.length)];
+  const tn=` It is now a ${TRAITS[target.trait].name}.`;
+  run.report=attack?`The Obsidian Hand seized your hex ${target.name}. Outposts can't be taken.${tn}`+tail:`The Obsidian Hand seized ${target.name}.${tn}`+tail;
   toast(attack?"Rival seized "+target.name:"Rival took "+target.name);
 }
 function updHeist(){
@@ -727,7 +739,7 @@ function renderMap(){
       <text x="${x}" y="${y+19}" text-anchor="middle" font-family="Limelight,Georgia,serif" font-size="12" fill="${red?"#b3203a":"#160a10"}">${h.num}</text>
       <text x="${x}" y="${y+26}" text-anchor="middle" font-size="5" fill="${red?"#b3203a":"#160a10"}">${"•".repeat(dots)}</text>
       ${!h.claimed&&h.mod?`<text x="${x}" y="${y+38}" text-anchor="middle" font-family="Silkscreen,monospace" font-size="6.5" fill="#ffcf5a">⚠ ${MODS[h.mod].tag}</text>`:""}
-      ${h.claimed?`<text x="${x}" y="${y+38}" text-anchor="middle" font-family="Silkscreen,monospace" font-size="6.5" fill="var(--brass-hi)">${h.outpost?"▲ OUTPOST":"★ HELD"}</text>`:h.rival?`<text x="${x}" y="${y+38}" text-anchor="middle" font-family="Silkscreen,monospace" font-size="6.5" fill="var(--ruby)">✕ RIVAL</text>`:""}
+      ${h.claimed?`<text x="${x}" y="${y+38}" text-anchor="middle" font-family="Silkscreen,monospace" font-size="6.5" fill="var(--brass-hi)">${h.outpost?"▲ OUTPOST":"★ HELD"}</text>`:h.rival?`<text x="${x}" y="${y+38}" text-anchor="middle" font-family="Silkscreen,monospace" font-size="6.5" fill="var(--ruby)">✕ ${h.trait?TRAITS[h.trait].tag:"RIVAL"}</text>`:""}
     </g>`;
   });
   const vav=available(6), vsel=selHex===6;
@@ -745,13 +757,13 @@ function renderMap(){
   $("#gadgetLine").textContent=parts.length?"Kit: "+parts.join(" · "):"Kit: nothing yet. Visit the Gadget Bench.";
   $("#perkTags").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
   for(const k of ["pen","boots","magnet","jammer","dash"])if(run.gadgets[k])see("gadget",k);if(run.bombs>0)see("gadget","bomb");if(run.shield>0)see("gadget","shield");if(run.maxHearts>3)see("gadget","medkit");
-  for(const id of run.perks)see("perk",id);
+  for(const id of run.perks)see("perk",id);run.hexes.forEach(h=>{if(h.rival&&h.trait)see("trait",h.trait)});
   updHeist();renderBrief();hud();saveRun();
 }
-const threatOf=i=>Math.min(9,(i===6?7:Math.min(run.cleared,6)+(run.hexes[i].rival?1:0))+(run.heat>=1?1:0));
+const threatOf=i=>Math.min(9,(i===6?7:Math.min(run.cleared,6)+(run.hexes[i].rival?1+(run.hexes[i].trait==="fortified"?1:0):0))+(run.heat>=1?1:0));
 function renderBrief(){
   const kv=$("#mKV"), roll=$("#btnRoll"), op=$("#btnOutpost"), oc=$("#outpostCost"), ob=$("#mObj");
-  op.hidden=true;oc.hidden=true;roll.hidden=false;ob.hidden=true;$("#mLabel").textContent="Mission brief";
+  op.hidden=true;oc.hidden=true;roll.hidden=false;ob.hidden=true;$("#mRival").hidden=true;$("#mLabel").textContent="Mission brief";
   if(selHex===null){$("#mName").textContent="Pick a hex";$("#mDesc").hidden=false;kv.hidden=true;roll.disabled=true;return}
   $("#mDesc").hidden=true;kv.hidden=false;roll.disabled=rolled;
   const d=threatOf(selHex);
@@ -772,6 +784,10 @@ function renderBrief(){
   if(h.rival)$("#mLabel").textContent="Raid · rival hex";
   $("#mRes").innerHTML=`<span class="dot ${h.type}"></span> ${RES[h.type].name} · +${h.rival?3:2} on clear${h.rival?", heist −3":""}, then +${per} on every roll of ${h.num}`;
   ob.hidden=false;ob.textContent="Bonus · "+OBJ[h.obj]+" Pays 12 chips and 1 resource."+(h.mod?"  Complication · "+MODS[h.mod].name+": "+MODS[h.mod].desc+" Pays +1 "+RES[h.type].name+" on clear.":"");
+  const lines=[],mr=$("#mRival");
+  if(h.rival){if(h.trait){const t=TRAITS[h.trait];lines.push(t.name+": "+t.desc+" "+t.reward)}const al=adaptLines();if(al.length)lines.push("Rival intel: expect "+al.join(", ")+".");lines.push("A rival agent guards the exit.")}
+  else{const ac=ambushChance();if(ac>0)lines.push("Rival activity is high: about a "+Math.round(ac*100)+"% chance of an ambush, with a rival agent guarding the exit.")}
+  mr.hidden=!lines.length;mr.textContent=lines.join(" ");
 }
 $("#board").addEventListener("click",e=>{const g=e.target.closest(".hex");if(g)pickHex(+g.dataset.i)});
 $("#board").addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;const g=e.target.closest(".hex");if(g){e.preventDefault();pickHex(+g.dataset.i)}});
@@ -966,7 +982,7 @@ function genTraining(){
   ];
   return {W:Wf,agent:null,tiles,E,boss:null,exitX:(Wf-5)*TS,exitY:9*TS,arenaX:(Wf-12)*TS,par:999,chipTotal:E.chips.length,tips};
 }
-function genLevel(type,d,seed,mod,raid){
+function genLevel(type,d,seed,mod,raid,trait,adapt){
   const rng=mulberry32(seed), R=(a,b)=>a+Math.floor(rng()*(b-a+1));
   const target=96+d*14+(type==="vault"?20:0), MAXW=target+60;
   const h=new Array(MAXW).fill(9), tiles=Array.from({length:ROWS},()=>new Uint8Array(MAXW));
@@ -975,12 +991,13 @@ function genLevel(type,d,seed,mod,raid){
   const setH=(c,v)=>{if(c>=0&&c<MAXW)h[c]=v};
   const setT=(r,c,v)=>{if(r>=0&&r<ROWS&&c>=0&&c<MAXW)tiles[r][c]=v};
   const chip=(c,r)=>E.chips.push({x:c*TS+4,y:r*TS+4,taken:false});
-  const goon=(c,g,tough)=>E.goons.push({x:c*TS+2,y:g*TS-14,w:12,h:14,vx:(rng()<0.5?-1:1)*(0.45+d*0.06),vy:0,alive:true,dead:0,armor:(tough&&d>=2&&rng()<0.18+d*0.04)?1:0,stun:0});
+  const fort=trait==="fortified",nest=trait==="nest",ad=adapt||{};
+  const goon=(c,g,tough)=>E.goons.push({x:c*TS+2,y:g*TS-14,w:12,h:14,vx:(rng()<0.5?-1:1)*(0.45+d*0.06),vy:0,alive:true,dead:0,armor:((tough||fort)&&(d>=2||fort||ad.armor)&&rng()<(fort?0.85:0.18+d*0.04+(ad.armor?0.3:0)))?1:0,stun:0});
   const goonP=0.28+d*0.06+(type==="intel"?0.18:0)+(type==="vault"?0.1:0)+(mod==="rush"?0.2:0);
   const chipBoost=(type==="gold"?1.6:1)*(mod==="rush"?1.8:1);
   const camP=mod==="blackout"?0:0.14+d*0.04+(type==="intel"?0.14:0);
   const cam=c=>E.cams.push({x:c*TS+3,y:10,w:10,h:6,t:rng()*6,ang:Math.PI/2,alive:true,see:false});
-  const W={gap:20,step:15,plat:18,flat:15,laser:6+d*2.5+(type==="circ"?12:0)+(type==="vault"?8:0)+(mod==="lockdown"?12:0),drone:10+d,moving:d>=1?9+d:0,turret:(d>=2||type==="circ")?6+d*1.5:0,crumble:d>=1?8:0};
+  const W={gap:20,step:15,plat:18,flat:15,laser:6+d*2.5+(type==="circ"?12:0)+(type==="vault"?8:0)+(mod==="lockdown"?12:0),drone:10+d+(ad.drones?10:0),moving:d>=1?9+d:0,turret:(d>=2||type==="circ"||nest||ad.snipers)?6+d*1.5+(nest?10:0)+(ad.snipers?5:0):0,crumble:d>=1?8:0};
   const tot=Object.values(W).reduce((a,b)=>a+b,0);
   const pickSeg=()=>{let r=rng()*tot;for(const [k,v] of Object.entries(W)){if((r-=v)<0)return k}return "flat"};
   let x=0,g=9;
@@ -1026,7 +1043,7 @@ function genLevel(type,d,seed,mod,raid){
       x+=gw;const n=R(4,6);for(let i=0;i<n;i++)setH(x+i,g);x+=n;
     }else{ // turret
       const n=R(6,9);for(let i=0;i<n;i++)setH(x+i,g);
-      E.turrets.push({x:(x+n-2)*TS+2,y:g*TS-10,w:12,h:10,cd:R(40,120),alive:true,face:-1,sniper:d>=3&&rng()<0.35,charge:0,aimY:0});
+      E.turrets.push({x:(x+n-2)*TS+2,y:g*TS-10,w:12,h:10,cd:R(40,120),alive:true,face:-1,sniper:(d>=3||nest||ad.snipers)&&rng()<(nest?0.85:ad.snipers?0.6:0.35),charge:0,aimY:0});
       for(let i=1;i<n-3;i++)if(rng()<0.4*chipBoost)chip(x+i,g-1);
       x+=n;
     }
@@ -1082,14 +1099,15 @@ function startLevel(i,tr){
   clearKeys();
   const type=tr?"gold":i===6?"vault":run.hexes[i].type, d=tr?0:threatOf(i);
   const mod=tr||i===6?null:run.hexes[i].mod||null;
-  const lv=tr?genTraining():genLevel(type,d,(run.seed^((i+1)*7919)^(run.missions*104729))>>>0,mod,i===6?false:run.hexes[i].rival);
+  const h0=tr||i===6?null:run.hexes[i],ambush=!!(h0&&!h0.rival&&Math.random()<ambushChance()),raidFlag=!!(h0&&(h0.rival||ambush));
+  const lv=tr?genTraining():genLevel(type,d,(run.seed^((i+1)*7919)^(run.missions*104729))>>>0,mod,raidFlag,h0&&h0.rival?h0.trait:null,raidFlag?rivalAdapt():null);
   const wx=[];for(let k=0;k<44;k++)wx.push({x:Math.random()*VW,y:Math.random()*VH,s:Math.random()});
   L={...lv,type,d,mod,crumb:new Map(),regrow:[],ghosts:[],rings:[],hurtT:0,hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
     p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false,dashT:0,dashCd:0,dashAir:false,dashDir:1},safe:{x:24,y:9*TS-14}};
   run.missions++;if(!tr){run.pending=i;saveRun();if(mod)see("mod",mod)}
-  L.hintQ=[];L.hintT=0;L.hintCur="";
+  L.hintQ=[];L.hintT=0;L.hintCur="";L.ambush=ambush;if(ambush)stat("ambushes");
   if(tr)L.obj=null;
-  L.title=tr?"TRAINING":(i===6?"THE VAULT":(run.hexes[i].rival?"RAID: ":"")+run.hexes[i].name.toUpperCase());
+  L.title=tr?"TRAINING":(i===6?"THE VAULT":(run.hexes[i].rival?"RAID: ":ambush?"AMBUSH: ":"")+run.hexes[i].name.toUpperCase());
   $("#lvlName").textContent=tr?"TRAINING":L.title+" · THREAT "+(d+1)+(mod?" · "+MODS[mod].name.toUpperCase():"");
   $("#lvlChips").textContent="CHIPS +0";
   $("#ovl").hidden=true;paused=false;$("#btnPause").textContent="Pause";
@@ -1403,6 +1421,13 @@ function clearLevel(){
   const os=objState();let objLine="";
   if(os){if(os.ok){run.objectives++;stat("objectives");run.chips+=12;run.earned+=12;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]++;objLine=`<p style="color:var(--circ)">Bonus complete: +12 chips, +1 ${RES[k].name}</p>`}else objLine=`<p class="muted">Bonus objective missed.</p>`}
   h.obj=OBJ_KEYS[Math.floor(Math.random()*OBJ_KEYS.length)];h.mod=pickMod(Math.random);
+  if(L.ambush)stat("ambushesBeaten");
+  if(raid&&h.trait){const T=h.trait;let tl="";
+    if(T==="fortified"){run.res[h.type]+=2;tl=`+2 ${RES[h.type].name} (Fortified)`}
+    else if(T==="nest"){run.chips+=15;run.earned+=15;run.res.intel++;tl="+15 chips, +1 Intel (Sniper nest)"}
+    else if(T==="spy"){run.heist=Math.max(0,run.heist-2);tl="heist −2 (Spy ring)"}
+    objLine=`<p style="color:var(--brass-hi)">Rival hex bonus: ${tl}</p>`+objLine}
+  h.trait=null;
   rivalTurn();
   hud();
   const o=$("#ovl");o.hidden=false;
@@ -1851,7 +1876,7 @@ function draw(){
   // intro banner
   if(L.f<110){const a=L.f<90?1:1-(L.f-90)/20;ctx.globalAlpha=a;ctx.fillStyle="rgba(22,10,16,.8)";ctx.fillRect(0,70,VW,40);ctx.fillStyle="#d9a441";ctx.fillRect(0,70,VW,1);ctx.fillRect(0,109,VW,1);
     ctx.fillStyle="#f3d07c";ctx.font="10px Silkscreen,monospace";const t=L.title;ctx.fillText(t,Math.round(VW/2-ctx.measureText(t).width/2),88);
-    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.boss?"DEFEAT THE CROUPIER · CRACK THE VAULT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
+    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.boss?"DEFEAT THE CROUPIER · CRACK THE VAULT":L.ambush?"AMBUSH! A RIVAL AGENT GUARDS THE EXIT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
 }
 function croupierSprite(f,rage,sw){
   return mkSprite("cq"+f+rage+sw,24,35,R0=>{
@@ -2130,13 +2155,14 @@ function renderStats(){
   const st=meta.stats,g=k=>st[k]||0,rank=RANKS[rankOf(meta.xp)];
   $("#statsRank").textContent=`${rank.name} · ${meta.xp} XP · Heat ${meta.heatMax} unlocked`;
   const winPct=g("runs")?Math.round(100*g("wins")/g("runs")):0;
-  const cards=[["Runs",g("runs")],["Vaults cracked",g("wins")],["Win rate",winPct+"%"],["Missions won",g("missions")],["Raids won",g("raids")],["Takedowns",g("takedowns")],["Silent takedowns",g("silent")],["Best chain",g("bestChain")],["Chips earned",g("chips")],["Bonus objectives",g("objectives")],["Briefcases",g("cases")],["Alarms tripped",g("alarms")],["Dashes",g("dashes")],["Rival agents beaten",g("agents")],["Croupiers beaten",g("bosses")]];
+  const cards=[["Runs",g("runs")],["Vaults cracked",g("wins")],["Win rate",winPct+"%"],["Missions won",g("missions")],["Raids won",g("raids")],["Takedowns",g("takedowns")],["Silent takedowns",g("silent")],["Best chain",g("bestChain")],["Chips earned",g("chips")],["Bonus objectives",g("objectives")],["Briefcases",g("cases")],["Alarms tripped",g("alarms")],["Dashes",g("dashes")],["Rival agents beaten",g("agents")],["Croupiers beaten",g("bosses")],["Ambushes beaten",g("ambushesBeaten")]];
   $("#statGrid").innerHTML=cards.map(([l,v])=>`<div class="statcard"><b>${v}</b><span>${l}</span></div>`).join("");
   const cats=[
     ["Enemies and hazards","enemy",Object.entries(ENEMY_INFO).map(([id,e])=>[id,e.name,e.desc])],
     ["Gadgets","gadget",ITEMS.map(i=>[i.id,i.name,i.desc])],
     ["Dossiers","perk",PERKS.map(p=>[p.id,p.name,p.desc])],
     ["Complications","mod",Object.entries(MODS).map(([id,m])=>[id,m.name,m.desc])],
+    ["Rival hexes","trait",Object.entries(TRAITS).map(([id,t])=>[id,t.name,t.desc+" "+t.reward])],
     ["Field events","event",EVENTS.map((e,i)=>[String(i),e.title,e.text])]
   ];
   let seen=0,total=0;
