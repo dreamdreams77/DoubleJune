@@ -66,6 +66,8 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 
 - **The Croupier** (vault boss): once he is down to 6 HP, every landing sends a gold shockwave rolling along the floor each way. Jump or dash over them.
 
+- **Reading the action**: your hearts and shields sit under the alert bar on the screen itself (so they show on phones too), the lost heart flickers when you are hit, and at one heart the screen edge pulses red with a heartbeat. A pink arrow at the screen edge warns of a shot or card flying in from off-screen. Hit enemies flash white, kills pop a ring, and long chains get a bigger pop-up. The camera leans a little in the direction you run.
+
 Each hex type flavours its level: Gold fronts drop more chips and safes, Circuits fronts have more lasers, Intel fronts have more goons. Threat rises with every hex you hold.
 
 ## The Obsidian Hand (rival agency)
