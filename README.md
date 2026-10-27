@@ -4,6 +4,16 @@ A spy-platformer roguelite in one HTML file. You play **Agent Jesper**, a pocket
 
 No build step, no dependencies. Open `index.html` in a browser and play.
 
+## Saving and resuming
+
+Your run saves automatically every time you reach the map and right after each dice roll, so a refresh, a crash or a phone reclaiming the tab doesn't lose it. The title screen shows **Continue run** with a summary. A few rules keep the save honest:
+
+- Closing the game **mid-mission** counts as fleeing: you lose a heart and the rival takes a turn when you resume. If that was your last heart, the run ends.
+- The dice you rolled are kept, so reloading can't be used to re-roll.
+- Closing the game on the dossier screen brings the dossier choice back.
+- Starting a new run while a save exists asks you to press **Start a run** twice.
+- Dying or finishing a run clears the save. The training mission never touches it.
+
 ## Learning the game
 
 - **Training mission**: the title screen has a guided course covering movement, jumping, stomping and chains, the silent sap, laser gates and cameras. It has on-screen prompts, no damage and no alarm, and you can leave from the pause menu. The title screen suggests it until you finish it once.

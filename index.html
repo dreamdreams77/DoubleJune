@@ -212,7 +212,8 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
         <div class="row" id="heatPick"></div>
         <p class="muted small-note" id="heatDesc"></p>
       </div>
-      <div class="row"><button class="btn" id="btnStart">Start a run</button><button class="btn ghost" id="btnTrain">Training mission</button><span class="muted" id="bestLine"></span></div>
+      <div class="row"><button class="btn" id="btnContinue" hidden>Continue run</button><button class="btn" id="btnStart">Start a run</button><button class="btn ghost" id="btnTrain">Training mission</button><span class="muted" id="bestLine"></span></div>
+      <p class="muted small-note" id="saveNote" hidden></p>
       <p class="muted small-note" id="trainNote">New here? The training mission teaches movement, stomping, sneaking and security, and takes about two minutes.</p>
     </div>
   </section>
@@ -582,7 +583,7 @@ function renderAgency(){
   $("#heatDesc").textContent=meta.heat?HEATS[meta.heat]+(meta.heat>1?" Includes every lower heat.":"")+` XP ×${1+meta.heat*0.25}.`:(meta.heatMax?"Standard rules. Raise the heat for more XP.":"Standard rules. Crack the Vault to unlock Heat 1.");
   $$("[data-kit]").forEach(b=>b.addEventListener("click",()=>{meta.kit=b.dataset.kit;saveMeta();renderAgency()}));
   $$("[data-heat]").forEach(b=>b.addEventListener("click",()=>{meta.heat=+b.dataset.heat;saveMeta();renderAgency()}));
-  $("#trainNote").hidden=!!meta.trained;
+  $("#trainNote").hidden=!!meta.trained;renderContinue();
   const best=loadBest();
   if(best)$("#bestLine").textContent=`Best run: ${best.cleared} hexes${best.wins?" · "+best.wins+" vault"+(best.wins>1?"s":"")+" cracked":""}`;
 }
@@ -605,6 +606,37 @@ function newRun(){
   if(kit==="ghost"){run.gadgets.jammer=true;run.perks.push("ghostproto")}
   run.report=`The Obsidian Hand is after these hexes too. It moves every ${rivalInterval()} missions, and every hex it holds feeds its heist meter. Fill it and they crack the Vault first.`;
   selHex=null;rolled=false;
+}
+
+/* ---------- run save / resume ---------- */
+const SAVE_KEY="dj-run";
+function saveRun(){if(!run||run.training)return;try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,t:Date.now(),selHex,rolled,run}))}catch(e){}}
+function clearSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
+function loadSave(){
+  try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)),r=s&&s.run;
+    if(!s||s.v!==1||!r||!Array.isArray(r.hexes)||r.hexes.length!==6||!r.res||!r.gadgets||!Array.isArray(r.perks)||typeof r.hearts!=="number"||typeof r.chips!=="number")return null;
+    return s}catch(e){return null}
+}
+function resumeRun(){
+  const s=loadSave();if(!s)return false;
+  run=s.run;selHex=s.selHex??null;rolled=!!s.rolled;clearKeys();
+  bj.state="bet";bj.p=[];bj.d=[];bj.dn=0;bj.pn=0;renderBJ();$("#bjMsg").textContent="Place a bet. Dealer stands on 17, blackjack pays 3 to 2.";
+  $("#dice").hidden=true;$("#dResult").textContent="";$("#btnGo").hidden=true;
+  if(run.pending!=null){ // the mission was abandoned: it costs a heart and the rival moves
+    run.pending=null;selHex=null;rolled=false;run.hearts--;rivalTurn();
+    if(run.hearts<=0){endRun(false,"abandon");return true}
+    toast("You fled the last mission: −1 heart");
+  }
+  if(run.heist>=run.heistMax){endRun(false,"heist");return true}
+  if(run.perkPending){showPerks();return true}
+  show("scr-map");renderMap();
+  if(rolled&&selHex!==null){$("#dResult").textContent="The dice are already rolled. Deploy when you are ready.";$("#btnGo").hidden=false}
+  return true;
+}
+function renderContinue(){
+  const s=loadSave(),b=$("#btnContinue"),n=$("#saveNote");
+  b.hidden=!s;n.hidden=!s;
+  if(s){const r=s.run,h=r.hexes.filter(x=>x.claimed).length;n.textContent=`Saved run: ${h} of 6 hexes held · ${r.cleared} missions won · ${r.hearts} heart${r.hearts===1?"":"s"} · ${r.chips} chips`}
 }
 
 /* ---------- ui helpers ---------- */
@@ -693,7 +725,7 @@ function renderMap(){
   if(g.boots)parts.push("Spring Heels");if(g.dash)parts.push("Phase Dash");if(run.bombs)parts.push(run.bombs+" Smoke Bomb"+(run.bombs>1?"s":""));if(g.jammer)parts.push("Signal Jammer");if(g.pen)parts.push("Dart Pen");if(g.magnet)parts.push("Magnet Cufflinks");if(run.shield)parts.push(run.shield+" Bowtie Shield"+(run.shield>1?"s":""));
   $("#gadgetLine").textContent=parts.length?"Kit: "+parts.join(" · "):"Kit: nothing yet. Visit the Gadget Bench.";
   $("#perkTags").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
-  updHeist();renderBrief();hud();
+  updHeist();renderBrief();hud();saveRun();
 }
 const threatOf=i=>Math.min(9,(i===6?7:Math.min(run.cleared,6)+(run.hexes[i].rival?1:0))+(run.heat>=1?1:0));
 function renderBrief(){
@@ -754,7 +786,7 @@ function resolveRoll(sum){
     const rv=run.hexes.filter(h=>h.rival&&h.num===sum).length;
     if(rv){run.heist+=rv;msg+=` The Obsidian Hand's hexes hit too: heist +${rv}.`}
   }
-  $("#dResult").textContent=msg;hud();updHeist();
+  $("#dResult").textContent=msg;hud();updHeist();saveRun();
   if(run.heist>=run.heistMax){setTimeout(()=>endRun(false,"heist"),1800);return}
   $("#btnGo").hidden=false;$("#btnGo").focus();
 }
@@ -1033,7 +1065,7 @@ function startLevel(i,tr){
   const wx=[];for(let k=0;k<44;k++)wx.push({x:Math.random()*VW,y:Math.random()*VH,s:Math.random()});
   L={...lv,type,d,mod,crumb:new Map(),regrow:[],ghosts:[],hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
     p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false,dashT:0,dashCd:0,dashAir:false,dashDir:1},safe:{x:24,y:9*TS-14}};
-  run.missions++;
+  run.missions++;if(!tr){run.pending=i;saveRun()}
   L.hintQ=[];L.hintT=0;L.hintCur="";
   if(tr)L.obj=null;
   L.title=tr?"TRAINING":(i===6?"THE VAULT":(run.hexes[i].rival?"RAID: ":"")+run.hexes[i].name.toUpperCase());
@@ -1090,7 +1122,7 @@ function hurt(pit){
   L.combo=0;Snd.sfx("hurt");hud();p.inv=90;L.shake=12;L.freeze=5;
   if(run.hearts<=0){
     if(has("wind")&&!run.windUsed){run.windUsed=true;run.hearts=1;hud();pop(p.x-10,p.y-8,"SECOND WIND","#3cc4b2");burst(p.x+5,p.y+7,"#3cc4b2",20)}
-    else{Snd.sfx("die");L.dying=1;p.vy=-5;p.vx=0;L.shake=14;burst(p.x+5,p.y+7,"#e04b63",16,3);return}
+    else{Snd.sfx("die");saveRun();L.dying=1;p.vy=-5;p.vx=0;L.shake=14;burst(p.x+5,p.y+7,"#e04b63",16,3);return}
   }
   if(pit){const back=[...L.hist].reverse().find(q=>q.x<=L.safe.x-30)||L.safe;p.x=back.x;p.y=back.y;p.vx=0;p.vy=0;p.ride=null}else{p.vy=-3.5;p.vx=-p.face*2}
 }
@@ -1338,6 +1370,7 @@ function clearLevel(){
   const o=$("#ovl");o.hidden=false;
   const avail=perkPool();
   o.innerHTML=`<span class="label">${raid?"Raid complete":"Mission complete"}</span><h2>${h.name} is yours</h2><p>+${(raid?3:2)+modBonus} ${RES[h.type].name}${modBonus?" (incl. "+modName+" +1)":""} · +${L.got} chips${healed?" · +1 heart":""}${raid?" · heist −3":""}</p>${objLine}<button class="btn" id="btnBack">${avail.length?"Choose a dossier":"Back to map"}</button>`;
+  run.pending=null;run.perkPending=avail.length>0;selHex=null;rolled=false;saveRun();
   $("#btnBack").addEventListener("click",()=>{selHex=null;rolled=false;if(run.heist>=run.heistMax){endRun(false,"heist");return}if(avail.length)showPerks();else toMap()});$("#btnBack").focus();
 }
 /* ---------- between-mission events ---------- */
@@ -1374,11 +1407,11 @@ function toMap(){if(run.cleared>=1&&Math.random()<0.4)showEvent();else{show("scr
 function showPerks(){
   const pool=shuffle(perkPool(),Math.random).slice(0,3);
   $("#perkChoices").innerHTML=pool.map(p=>`<button class="perk" data-perk="${p.id}"><span class="label">${p.tag}</span><h3>${p.name}</h3><span>${p.desc}</span></button>`).join("");
-  $$("[data-perk]").forEach(b=>b.addEventListener("click",()=>{run.perks.push(b.dataset.perk);toast(PERKS.find(p=>p.id===b.dataset.perk).name+" added");toMap()}));
+  $$("[data-perk]").forEach(b=>b.addEventListener("click",()=>{run.perks.push(b.dataset.perk);run.perkPending=false;toast(PERKS.find(p=>p.id===b.dataset.perk).name+" added");toMap()}));
   show("scr-perk");
 }
 function endRun(won,why){
-  running=false;Snd.sfx(won?"victory":"lose");run.won=won;
+  clearSave();running=false;Snd.sfx(won?"victory":"lose");run.won=won;
   const best=loadBest()||{cleared:0,earned:0,wins:0};
   const nb={cleared:Math.max(best.cleared,held()),earned:Math.max(best.earned,run.earned),wins:(best.wins||0)+(won?1:0)};saveBest(nb);
   const before=rankOf(meta.xp);
@@ -1389,7 +1422,7 @@ function endRun(won,why){
   saveMeta();const after=rankOf(meta.xp);
   $("#ovLabel").textContent=won?"Run complete":"Run over";
   $("#ovTitle").textContent=won?"Vault cracked":why==="heist"?"Out-heisted":"Agent down";
-  $("#ovStats").innerHTML=`${why==="heist"?"<dt>Cause</dt><dd>The Obsidian Hand cracked the Vault first</dd>":""}<dt>Hexes held</dt><dd>${held()} of 6 · ${run.hexes.filter(h=>h.outpost).length} outposts</dd><dt>Missions</dt><dd>${run.cleared} won of ${run.missions}</dd><dt>Objectives</dt><dd>${run.objectives}</dd><dt>Alarms</dt><dd>${run.alarms}</dd><dt>Chips earned</dt><dd>${run.earned}</dd><dt>Heat</dt><dd>${run.heat}</dd>`;
+  $("#ovStats").innerHTML=`${why==="heist"?"<dt>Cause</dt><dd>The Obsidian Hand cracked the Vault first</dd>":why==="abandon"?"<dt>Cause</dt><dd>You fled a mission and your wounds finished you</dd>":""}<dt>Hexes held</dt><dd>${held()} of 6 · ${run.hexes.filter(h=>h.outpost).length} outposts</dd><dt>Missions</dt><dd>${run.cleared} won of ${run.missions}</dd><dt>Objectives</dt><dd>${run.objectives}</dd><dt>Alarms</dt><dd>${run.alarms}</dd><dt>Chips earned</dt><dd>${run.earned}</dd><dt>Heat</dt><dd>${run.heat}</dd>`;
   $("#ovPerks").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
   $("#ovXP").innerHTML=`<b style="color:var(--brass-hi)">+${xp} agency XP</b>${mult>1?` (heat ×${mult})`:""}<br><span class="muted">${parts.filter(p=>p[1]).map(p=>p[0]+" "+p[1]).join(" · ")||"No XP this time."}</span>${after>before?`<br><b style="color:var(--circ)">Promoted to ${RANKS[after].name}. Unlocked ${RANKS[after].unlock}.</b>`:""}${heatMsg?`<br><b style="color:var(--ruby)">${heatMsg}</b>`:""}`;
   renderAgency();show("scr-over");
@@ -2028,10 +2061,15 @@ $("#btnTrade").addEventListener("click",()=>{
 });
 
 /* ---------- flow ---------- */
-function begin(){newRun();clearKeys();$("#dice").hidden=true;$("#dResult").textContent="";$("#btnGo").hidden=true;bj.state="bet";bj.p=[];bj.d=[];renderBJ();$("#bjMsg").textContent="Place a bet. Dealer stands on 17, blackjack pays 3 to 2.";show("scr-map");renderMap()}
-$("#btnStart").addEventListener("click",begin);
-$("#btnTrain").addEventListener("click",()=>{begin();run.training=true;startLevel(0,true)});
-$("#btnAgain").addEventListener("click",begin);
+function begin(tr){newRun();if(tr)run.training=true;clearKeys();$("#dice").hidden=true;$("#dResult").textContent="";$("#btnGo").hidden=true;bj.state="bet";bj.p=[];bj.d=[];renderBJ();$("#bjMsg").textContent="Place a bet. Dealer stands on 17, blackjack pays 3 to 2.";show("scr-map");renderMap()}
+let startArmed=0;
+$("#btnStart").addEventListener("click",()=>{
+  if(loadSave()&&Date.now()-startArmed>4000){startArmed=Date.now();$("#btnStart").textContent="Abandon the saved run?";setTimeout(()=>{$("#btnStart").textContent="Start a run"},4000);return}
+  startArmed=0;$("#btnStart").textContent="Start a run";begin();
+});
+$("#btnContinue").addEventListener("click",()=>{if(!resumeRun()){toast("No saved run found.");renderContinue()}});
+$("#btnTrain").addEventListener("click",()=>{begin(true);startLevel(0,true)});
+$("#btnAgain").addEventListener("click",()=>begin());
 renderAgency();
 if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 })();
