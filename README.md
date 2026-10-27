@@ -4,6 +4,20 @@ A spy-platformer roguelite in one HTML file. You play **Agent Jesper**, a pocket
 
 No build step, no dependencies. Open `index.html` in a browser and play.
 
+## Daily run
+
+The title screen's **Daily run** gives everyone the same map and the same levels for the day (seeded from the UTC date), with a fixed standard kit and one **mutator** that rotates daily:
+
+| Mutator | Effect |
+|---|---|
+| Glass cannon | Only 2 hearts, but every chip is worth 50% more |
+| Rush hour | Every mission is a Gold Rush |
+| Hot pursuit | The rival speeds up from turn 2 and its heist meter is only 12 |
+| Lights out | Every mission is a Blackout |
+| Silent night | An alarm costs a heart (never your last), but bonus objectives pay double |
+
+Your best result for each day (Vault cracked first, then hexes held, then chips) is remembered and shown on the title screen, and the end screen says when you beat it. Dice rolls and rival moves are still random, so the map is shared but the run is not.
+
 ## Agent file: stats and field guide
 
 **Stats & field guide** on the title screen opens your lifetime record: runs, Vaults cracked and win rate, missions and raids won, takedowns, silent takedowns, best chain, chips earned, bonus objectives, briefcases, alarms tripped, dashes, rival agents and Croupiers beaten.

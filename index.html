@@ -217,7 +217,8 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
         <div class="row" id="heatPick"></div>
         <p class="muted small-note" id="heatDesc"></p>
       </div>
-      <div class="row"><button class="btn" id="btnContinue" hidden>Continue run</button><button class="btn" id="btnStart">Start a run</button><button class="btn ghost" id="btnTrain">Training mission</button><button class="btn ghost" id="btnStats">Stats &amp; field guide</button><span class="muted" id="bestLine"></span></div>
+      <div class="row"><button class="btn" id="btnContinue" hidden>Continue run</button><button class="btn" id="btnStart">Start a run</button><button class="btn ghost" id="btnDaily">Daily run</button><button class="btn ghost" id="btnTrain">Training mission</button><button class="btn ghost" id="btnStats">Stats &amp; field guide</button><span class="muted" id="bestLine"></span></div>
+      <p class="muted small-note" id="dailyNote"></p>
       <p class="muted small-note" id="saveNote" hidden></p>
       <p class="muted small-note" id="trainNote">New here? The training mission teaches movement, stomping, sneaking and security, and takes about two minutes.</p>
     </div>
@@ -598,6 +599,19 @@ const MODS={
 };
 const MOD_KEYS=Object.keys(MODS);
 const pickMod=r=>r()<0.4?null:MOD_KEYS[Math.floor(r()*MOD_KEYS.length)];
+// Daily run: the same seeded map for everyone on a given (UTC) day, a fixed kit, and one mutator.
+const MUTATORS={
+  glass:{name:"Glass cannon",desc:"Only 2 hearts, but every chip you collect is worth 50% more."},
+  rush:{name:"Rush hour",desc:"Every mission is a Gold Rush: twice the chips and far more goons."},
+  rival:{name:"Hot pursuit",desc:"The rival speeds up from turn 2 and its heist meter is only 12."},
+  dark:{name:"Lights out",desc:"Every mission is a Blackout: dead cameras and a dark city."},
+  ghost:{name:"Silent night",desc:"Tripping an alarm costs a heart (never your last), but bonus objectives pay double."}
+};
+const MUT_KEYS=Object.keys(MUTATORS);
+const dailyDate=()=>new Date().toISOString().slice(0,10);
+const dailySeed=d=>(+d.replace(/-/g,"")*2654435761>>>0)&0x7fffffff;
+const dailyMutator=d=>MUT_KEYS[+d.replace(/-/g,"")%MUT_KEYS.length];
+const modFor=m=>run&&run.mut==="rush"?"rush":run&&run.mut==="dark"?"blackout":m;
 const perkPool=()=>PERKS.filter(p=>!run.perks.includes(p.id)&&(p.rank||0)<=rankOf(meta.xp));
 function renderAgency(){
   const r=rankOf(meta.xp),next=RANKS[r+1];
@@ -620,21 +634,23 @@ function renderAgency(){
 
 /* ---------- state ---------- */
 let run=null, selHex=null, rolled=false;
-function newRun(){
-  const seed=(Math.random()*2**31)|0, rng=mulberry32(seed);
+function newRun(daily){
+  const date=daily?dailyDate():null,mut=daily?dailyMutator(date):null;
+  const seed=daily?dailySeed(date):(Math.random()*2**31)|0, rng=mulberry32(seed);
   const types=shuffle(["gold","gold","circ","circ","intel","intel"],rng);
   const nums=shuffle([3,4,5,6,8,9,10,11],rng).slice(0,6);
   const used={gold:shuffle([...NAMES.gold],rng),circ:shuffle([...NAMES.circ],rng),intel:shuffle([...NAMES.intel],rng)};
-  const heat=meta.heat, kit=meta.kit;
-  run={seed,heat,kit,hexes:types.map((t,i)=>({i,type:t,num:nums[i],name:used[t].pop(),claimed:false,outpost:false,rival:false,obj:OBJ_KEYS[Math.floor(rng()*OBJ_KEYS.length)],mod:pickMod(rng)})),
-    chips:20,res:{gold:1,circ:1,intel:1},hearts:heat>=3?2:3,maxHearts:heat>=3?2:3,shield:0,perks:[],windUsed:false,
+  const heat=daily?0:meta.heat, kit=daily?"standard":meta.kit;
+  const fm=m=>mut==="rush"?"rush":mut==="dark"?"blackout":m;
+  run={seed,heat,kit,daily:date,mut,hexes:types.map((t,i)=>({i,type:t,num:nums[i],name:used[t].pop(),claimed:false,outpost:false,rival:false,obj:OBJ_KEYS[Math.floor(rng()*OBJ_KEYS.length)],mod:fm(pickMod(rng))})),
+    chips:20,res:{gold:1,circ:1,intel:1},hearts:(heat>=3||mut==="glass")?2:3,maxHearts:(heat>=3||mut==="glass")?2:3,shield:0,perks:[],windUsed:false,
     bombs:0,gadgets:{dash:false,boots:false,pen:false,magnet:false,jammer:false},cleared:0,missions:0,earned:0,briefcases:0,objectives:0,retakes:0,alarms:0,
-    turn:0,heist:0,heistMax:heat>=5?12:15,report:"",won:false};
+    turn:0,heist:0,heistMax:(heat>=5||mut==="rival")?12:15,report:"",won:false};
   if(kit==="gambler")run.chips+=40;
   if(kit==="engineer")run.gadgets.boots=true;
   if(kit==="diplomat"){run.shield=1;run.perks.push("informant")}
   if(kit==="ghost"){run.gadgets.jammer=true;run.perks.push("ghostproto")}
-  run.report=`The Obsidian Hand is after these hexes too. It moves every ${rivalInterval()} missions, and every hex it holds feeds its heist meter. Fill it and they crack the Vault first.`;
+  run.report=(daily?`Daily run ${date} · ${MUTATORS[mut].name}: ${MUTATORS[mut].desc} `:"")+`The Obsidian Hand is after these hexes too. It moves every ${rivalInterval()} missions, and every hex it holds feeds its heist meter. Fill it and they crack the Vault first.`;
   selHex=null;rolled=false;
 }
 
@@ -663,9 +679,14 @@ function resumeRun(){
   if(rolled&&selHex!==null){$("#dResult").textContent="The dice are already rolled. Deploy when you are ready.";$("#btnGo").hidden=false}
   return true;
 }
+function dailyScore(r){return(r.won?1000:0)+r.held*100+Math.min(99,Math.floor((r.earned||0)/10))}
+function renderDaily(){
+  const d=dailyDate(),m=MUTATORS[dailyMutator(d)],b=(meta.daily||{})[d];
+  $("#dailyNote").textContent=`Daily run, ${d}: ${m.name}. ${m.desc}`+(b?` Your best today: ${b.won?"Vault cracked":b.held+" of 6 hexes"}, ${b.earned} chips.`:"");
+}
 function renderContinue(){
   const s=loadSave(),b=$("#btnContinue"),n=$("#saveNote");
-  b.hidden=!s;n.hidden=!s;
+  b.hidden=!s;n.hidden=!s;renderDaily();
   if(s){const r=s.run,h=r.hexes.filter(x=>x.claimed).length;n.textContent=`Saved run: ${h} of 6 hexes held · ${r.cleared} missions won · ${r.hearts} heart${r.hearts===1?"":"s"} · ${r.chips} chips`}
 }
 
@@ -697,7 +718,7 @@ function available(i){
   const h=run.hexes[i];if(h.claimed)return false;
   return held()===0||run.hexes[(i+1)%6].claimed||run.hexes[(i+5)%6].claimed;
 }
-function rivalInterval(){let n=2;if(has("double"))n=3;if(run.heat>=2&&run.turn>=4)n=Math.max(1,n-1);return n}
+function rivalInterval(){let n=2;if(has("double"))n=3;if(run.heat>=2&&run.turn>=4)n=Math.max(1,n-1);if(run.mut==="rival"&&run.turn>=2)n=Math.max(1,n-1);return n}
 function rivalTurn(){
   run.turn++;
   const rh=run.hexes.filter(h=>h.rival);
@@ -754,7 +775,8 @@ function renderMap(){
   $("#clearedLbl").textContent=held()+" of 6 held";
   const g=run.gadgets, parts=[];
   if(g.boots)parts.push("Spring Heels");if(g.dash)parts.push("Phase Dash");if(run.bombs)parts.push(run.bombs+" Smoke Bomb"+(run.bombs>1?"s":""));if(g.jammer)parts.push("Signal Jammer");if(g.pen)parts.push("Dart Pen");if(g.magnet)parts.push("Magnet Cufflinks");if(run.shield)parts.push(run.shield+" Bowtie Shield"+(run.shield>1?"s":""));
-  $("#gadgetLine").textContent=parts.length?"Kit: "+parts.join(" · "):"Kit: nothing yet. Visit the Gadget Bench.";
+  const mutPre=run.mut?"Daily: "+MUTATORS[run.mut].name+". ":"";
+  $("#gadgetLine").textContent=mutPre+(parts.length?"Kit: "+parts.join(" · "):"Kit: nothing yet. Visit the Gadget Bench.");
   $("#perkTags").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
   for(const k of ["pen","boots","magnet","jammer","dash"])if(run.gadgets[k])see("gadget",k);if(run.bombs>0)see("gadget","bomb");if(run.shield>0)see("gadget","shield");if(run.maxHearts>3)see("gadget","medkit");
   for(const id of run.perks)see("perk",id);run.hexes.forEach(h=>{if(h.rival&&h.trait)see("trait",h.trait)});
@@ -1136,7 +1158,7 @@ function pop(x,y,text,col,big){L.pops.push({x,y,text,life:big?60:44,col:col||"#f
 function ring(x,y,col){L.rings.push({x,y,r:3,life:14,col})}
 const silCache=new WeakMap();
 function silhouette(img){let c=silCache.get(img);if(c)return c;c=document.createElement("canvas");c.width=img.width;c.height=img.height;const g=c.getContext("2d");g.drawImage(img,0,0);g.globalCompositeOperation="source-in";g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);silCache.set(img,c);return c}
-function addChips(n,x,y){run.chips+=n;run.earned+=n;L.got+=n;$("#lvlChips").textContent="CHIPS +"+L.got;hud();if(x!==undefined)pop(x,y,"+"+n)}
+function addChips(n,x,y){if(run.mut==="glass"&&n>0)n=Math.ceil(n*1.5);run.chips+=n;run.earned+=n;L.got+=n;$("#lvlChips").textContent="CHIPS +"+L.got;hud();if(x!==undefined)pop(x,y,"+"+n)}
 // Close-range strike for agents without the Dart Pen: silent kill from behind, a stun from the front
 function sap(){
   const p=L.p;p.cool=22;L.swing=8;Snd.sfx("sap");
@@ -1351,7 +1373,7 @@ function step(){
   if(p.x+p.w>L.exitX+6){if((L.boss&&L.boss.alive)||(L.agent&&L.agent.alive)){p.x=L.exitX+6-p.w;p.vx=0;if(L.f%60===0)pop(p.x-20,p.y-8,L.boss&&L.boss.alive?"BEAT THE CROUPIER":"DEFEAT THE AGENT","#e04b63")}else{L.exiting=1;burst(L.exitX+11,L.exitY-16,"#f3d07c",14,2)}}
 }
 function tripAlarm(){
-  Snd.sfx("alarmstart");stat("alarms");L.alarm=true;L.alarmEver=true;L.alert=100;run.alarms++;L.shake=10;pop(L.p.x-14,L.p.y-14,"ALARM!","#e04b63");
+  Snd.sfx("alarmstart");stat("alarms");if(run.mut==="ghost"&&run.hearts>1){run.hearts--;L.hurtT=26;hud()}L.alarm=true;L.alarmEver=true;L.alert=100;run.alarms++;L.shake=10;pop(L.p.x-14,L.p.y-14,"ALARM!","#e04b63");
   const n=run.heat>=4?4:2;
   for(let k=0;k<n;k++){let c=Math.floor((L.p.x+110+k*36)/TS);
     for(let t=0;t<8&&c<L.W-7;t++,c++){let r=0;while(r<ROWS&&L.tiles[r][c]===0)r++;
@@ -1419,8 +1441,8 @@ function clearLevel(){
   stat("missions");if(raid){stat("raids");run.heist=Math.max(0,run.heist-3);run.retakes++}
   const healed=run.hearts<run.maxHearts;if(healed)run.hearts++;
   const os=objState();let objLine="";
-  if(os){if(os.ok){run.objectives++;stat("objectives");run.chips+=12;run.earned+=12;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]++;objLine=`<p style="color:var(--circ)">Bonus complete: +12 chips, +1 ${RES[k].name}</p>`}else objLine=`<p class="muted">Bonus objective missed.</p>`}
-  h.obj=OBJ_KEYS[Math.floor(Math.random()*OBJ_KEYS.length)];h.mod=pickMod(Math.random);
+  if(os){if(os.ok){const dm=run.mut==="ghost"?2:1;run.objectives++;stat("objectives");run.chips+=12*dm;run.earned+=12*dm;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]+=dm;objLine=`<p style="color:var(--circ)">Bonus complete: +${12*dm} chips, +${dm} ${RES[k].name}</p>`}else objLine=`<p class="muted">Bonus objective missed.</p>`}
+  h.obj=OBJ_KEYS[Math.floor(Math.random()*OBJ_KEYS.length)];h.mod=modFor(pickMod(Math.random));
   if(L.ambush)stat("ambushesBeaten");
   if(raid&&h.trait){const T=h.trait;let tl="";
     if(T==="fortified"){run.res[h.type]+=2;tl=`+2 ${RES[h.type].name} (Fortified)`}
@@ -1474,7 +1496,13 @@ function showPerks(){
   show("scr-perk");
 }
 function endRun(won,why){
-  clearSave();running=false;if(!run.training){stat("runs");if(won)stat("wins");stat("chips",run.earned||0);saveMeta()}Snd.sfx(won?"victory":"lose");run.won=won;
+  clearSave();running=false;let dailyMsg="";
+  if(!run.training){stat("runs");if(won)stat("wins");stat("chips",run.earned||0);
+    if(run.daily){stat("dailies");const rec={won:!!won,held:held(),earned:run.earned||0},bd=meta.daily||(meta.daily={}),old=bd[run.daily];
+      const better=!old||dailyScore(rec)>dailyScore(old);if(better)bd[run.daily]=rec;
+      const keys=Object.keys(bd).sort();while(keys.length>30)delete bd[keys.shift()];
+      dailyMsg=`<dt>Daily run</dt><dd>${run.daily} · ${MUTATORS[run.mut].name}${better?" · new best for today":""}</dd>`}
+    saveMeta()}Snd.sfx(won?"victory":"lose");run.won=won;
   const best=loadBest()||{cleared:0,earned:0,wins:0};
   const nb={cleared:Math.max(best.cleared,held()),earned:Math.max(best.earned,run.earned),wins:(best.wins||0)+(won?1:0)};saveBest(nb);
   const before=rankOf(meta.xp);
@@ -1485,7 +1513,7 @@ function endRun(won,why){
   saveMeta();const after=rankOf(meta.xp);
   $("#ovLabel").textContent=won?"Run complete":"Run over";
   $("#ovTitle").textContent=won?"Vault cracked":why==="heist"?"Out-heisted":"Agent down";
-  $("#ovStats").innerHTML=`${why==="heist"?"<dt>Cause</dt><dd>The Obsidian Hand cracked the Vault first</dd>":why==="abandon"?"<dt>Cause</dt><dd>You fled a mission and your wounds finished you</dd>":""}<dt>Hexes held</dt><dd>${held()} of 6 · ${run.hexes.filter(h=>h.outpost).length} outposts</dd><dt>Missions</dt><dd>${run.cleared} won of ${run.missions}</dd><dt>Objectives</dt><dd>${run.objectives}</dd><dt>Alarms</dt><dd>${run.alarms}</dd><dt>Chips earned</dt><dd>${run.earned}</dd><dt>Heat</dt><dd>${run.heat}</dd>`;
+  $("#ovStats").innerHTML=`${dailyMsg}${why==="heist"?"<dt>Cause</dt><dd>The Obsidian Hand cracked the Vault first</dd>":why==="abandon"?"<dt>Cause</dt><dd>You fled a mission and your wounds finished you</dd>":""}<dt>Hexes held</dt><dd>${held()} of 6 · ${run.hexes.filter(h=>h.outpost).length} outposts</dd><dt>Missions</dt><dd>${run.cleared} won of ${run.missions}</dd><dt>Objectives</dt><dd>${run.objectives}</dd><dt>Alarms</dt><dd>${run.alarms}</dd><dt>Chips earned</dt><dd>${run.earned}</dd><dt>Heat</dt><dd>${run.heat}</dd>`;
   $("#ovPerks").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
   $("#ovXP").innerHTML=`<b style="color:var(--brass-hi)">+${xp} agency XP</b>${mult>1?` (heat ×${mult})`:""}<br><span class="muted">${parts.filter(p=>p[1]).map(p=>p[0]+" "+p[1]).join(" · ")||"No XP this time."}</span>${after>before?`<br><b style="color:var(--circ)">Promoted to ${RANKS[after].name}. Unlocked ${RANKS[after].unlock}.</b>`:""}${heatMsg?`<br><b style="color:var(--ruby)">${heatMsg}</b>`:""}`;
   renderAgency();show("scr-over");
@@ -2155,7 +2183,7 @@ function renderStats(){
   const st=meta.stats,g=k=>st[k]||0,rank=RANKS[rankOf(meta.xp)];
   $("#statsRank").textContent=`${rank.name} · ${meta.xp} XP · Heat ${meta.heatMax} unlocked`;
   const winPct=g("runs")?Math.round(100*g("wins")/g("runs")):0;
-  const cards=[["Runs",g("runs")],["Vaults cracked",g("wins")],["Win rate",winPct+"%"],["Missions won",g("missions")],["Raids won",g("raids")],["Takedowns",g("takedowns")],["Silent takedowns",g("silent")],["Best chain",g("bestChain")],["Chips earned",g("chips")],["Bonus objectives",g("objectives")],["Briefcases",g("cases")],["Alarms tripped",g("alarms")],["Dashes",g("dashes")],["Rival agents beaten",g("agents")],["Croupiers beaten",g("bosses")],["Ambushes beaten",g("ambushesBeaten")]];
+  const cards=[["Runs",g("runs")],["Vaults cracked",g("wins")],["Win rate",winPct+"%"],["Missions won",g("missions")],["Raids won",g("raids")],["Takedowns",g("takedowns")],["Silent takedowns",g("silent")],["Best chain",g("bestChain")],["Chips earned",g("chips")],["Bonus objectives",g("objectives")],["Briefcases",g("cases")],["Alarms tripped",g("alarms")],["Dashes",g("dashes")],["Rival agents beaten",g("agents")],["Croupiers beaten",g("bosses")],["Ambushes beaten",g("ambushesBeaten")],["Daily runs",g("dailies")]];
   $("#statGrid").innerHTML=cards.map(([l,v])=>`<div class="statcard"><b>${v}</b><span>${l}</span></div>`).join("");
   const cats=[
     ["Enemies and hazards","enemy",Object.entries(ENEMY_INFO).map(([id,e])=>[id,e.name,e.desc])],
@@ -2177,12 +2205,14 @@ $("#btnStats").addEventListener("click",()=>{renderStats();show("scr-stats")});
 $("#btnStatsBack").addEventListener("click",()=>{show("scr-title");renderAgency()});
 
 /* ---------- flow ---------- */
-function begin(tr){newRun();if(tr)run.training=true;clearKeys();$("#dice").hidden=true;$("#dResult").textContent="";$("#btnGo").hidden=true;bj.state="bet";bj.p=[];bj.d=[];renderBJ();$("#bjMsg").textContent="Place a bet. Dealer stands on 17, blackjack pays 3 to 2.";show("scr-map");renderMap()}
+function begin(tr,daily){newRun(daily);if(tr)run.training=true;clearKeys();$("#dice").hidden=true;$("#dResult").textContent="";$("#btnGo").hidden=true;bj.state="bet";bj.p=[];bj.d=[];renderBJ();$("#bjMsg").textContent="Place a bet. Dealer stands on 17, blackjack pays 3 to 2.";show("scr-map");renderMap()}
 let startArmed=0;
-$("#btnStart").addEventListener("click",()=>{
-  if(loadSave()&&Date.now()-startArmed>4000){startArmed=Date.now();$("#btnStart").textContent="Abandon the saved run?";setTimeout(()=>{$("#btnStart").textContent="Start a run"},4000);return}
-  startArmed=0;$("#btnStart").textContent="Start a run";begin();
-});
+function guardedStart(btn,label,fn){
+  if(loadSave()&&Date.now()-startArmed>4000){startArmed=Date.now();btn.textContent="Abandon the saved run?";setTimeout(()=>{btn.textContent=label},4000);return}
+  startArmed=0;btn.textContent=label;fn();
+}
+$("#btnStart").addEventListener("click",()=>guardedStart($("#btnStart"),"Start a run",()=>begin()));
+$("#btnDaily").addEventListener("click",()=>guardedStart($("#btnDaily"),"Daily run",()=>begin(false,true)));
 $("#btnContinue").addEventListener("click",()=>{if(!resumeRun()){toast("No saved run found.");renderContinue()}});
 $("#btnTrain").addEventListener("click",()=>{begin(true);startLevel(0,true)});
 $("#btnAgain").addEventListener("click",()=>begin());
