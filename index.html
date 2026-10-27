@@ -1009,7 +1009,7 @@ function genLevel(type,d,seed,mod,raid,trait,adapt){
   const target=96+d*14+(type==="vault"?20:0), MAXW=target+60;
   const h=new Array(MAXW).fill(9), tiles=Array.from({length:ROWS},()=>new Uint8Array(MAXW));
   const E={goons:[],drones:[],lasers:[],chips:[],turrets:[],plats:[],cases:[],cams:[],springs:[]};
-  const caseSpots=[];
+  const caseSpots=[],beltSpecs=[];
   const setH=(c,v)=>{if(c>=0&&c<MAXW)h[c]=v};
   const setT=(r,c,v)=>{if(r>=0&&r<ROWS&&c>=0&&c<MAXW)tiles[r][c]=v};
   const chip=(c,r)=>E.chips.push({x:c*TS+4,y:r*TS+4,taken:false});
@@ -1019,13 +1019,13 @@ function genLevel(type,d,seed,mod,raid,trait,adapt){
   const chipBoost=(type==="gold"?1.6:1)*(mod==="rush"?1.8:1);
   const camP=mod==="blackout"?0:0.14+d*0.04+(type==="intel"?0.14:0);
   const cam=c=>E.cams.push({x:c*TS+3,y:10,w:10,h:6,t:rng()*6,ang:Math.PI/2,alive:true,see:false});
-  const W={gap:20,step:15,plat:18,flat:15,laser:6+d*2.5+(type==="circ"?12:0)+(type==="vault"?8:0)+(mod==="lockdown"?12:0),drone:10+d+(ad.drones?10:0),moving:d>=1?9+d:0,turret:(d>=2||type==="circ"||nest||ad.snipers)?6+d*1.5+(nest?10:0)+(ad.snipers?5:0):0,crumble:d>=1?8:0};
+  const W={gap:20,step:15,plat:18,flat:15,laser:6+d*2.5+(type==="circ"?12:0)+(type==="vault"?8:0)+(mod==="lockdown"?12:0),drone:10+d+(ad.drones?10:0),moving:d>=1?9+d:0,turret:(d>=2||type==="circ"||nest||ad.snipers)?6+d*1.5+(nest?10:0)+(ad.snipers?5:0):0,crumble:d>=1?8:0,conveyor:d>=1?10:0};
   const tot=Object.values(W).reduce((a,b)=>a+b,0);
   const pickSeg=()=>{let r=rng()*tot;for(const [k,v] of Object.entries(W)){if((r-=v)<0)return k}return "flat"};
-  let x=0,g=9;
+  let x=0,g=9,lastSeg=null;
   for(;x<8;x++)setH(x,g);
   while(x<target){
-    const seg=pickSeg();
+    const seg=pickSeg(),prevSeg=lastSeg;lastSeg=seg;
     if(seg==="gap"){
       const gw=R(2,Math.min(4,2+Math.floor(d/3)));
       for(let i=0;i<gw;i++){setH(x+i,-1);chip(x+i,g-3-(i===Math.floor(gw/2)?1:0))}
@@ -1054,11 +1054,16 @@ function genLevel(type,d,seed,mod,raid,trait,adapt){
       E.drones.push({x0:(x+n/2)*TS,y0:(g-4)*TS,t:rng()*6,amp:R(18,40),x:0,y:0,w:14,h:7,alive:true});
       x+=n;
     }else if(seg==="moving"){
+      if(prevSeg==="conveyor"){for(let i=0;i<2;i++)setH(x+i,g);x+=2} // keep belts away from the waiting spot
       const gw=R(5,7);
       for(let i=0;i<gw;i++)setH(x+i,-1);
       E.plats.push({x0:x*TS+2,y:g*TS,w:40,h:6,range:gw*TS-44,t:rng()*6,sp:0.018+d*0.003,x:x*TS+2,dx:0});
       chip(x+Math.floor(gw/2),g-2);
       x+=gw;const n=R(4,6);for(let i=0;i<n;i++)setH(x+i,g);x+=n;
+    }else if(seg==="conveyor"){ // a belt that carries you and the goons along
+      const n=R(6,9),dir=rng()<0.5?-1:1;for(let i=0;i<n;i++)setH(x+i,g);beltSpecs.push({c0:x,c1:x+n-1,dir});
+      for(let i=1;i<n-1;i++)if(rng()<0.45*chipBoost)chip(x+i,g-1);
+      if(rng()<goonP)goon(x+Math.floor(n/2),g);x+=n;
     }else if(seg==="crumble"){ // plank bridge: each plank drops shortly after you step on it
       const gw=R(3,4);
       for(let i=0;i<gw;i++){setH(x+i,-1);setT(g,x+i,5);if(rng()<0.6*chipBoost)chip(x+i,g-2)}
@@ -1075,6 +1080,8 @@ function genLevel(type,d,seed,mod,raid,trait,adapt){
   for(;x<end;x++)setH(x,g);
   const Wf=end;
   for(let c=0;c<Wf;c++){if(h[c]<0)continue;for(let rr=h[c];rr<ROWS;rr++)tiles[rr][c]=1}
+  const beltDir=new Int8Array(Wf);
+  for(const bs of beltSpecs)for(let c=bs.c0;c<=bs.c1&&c<Wf;c++)if(h[c]>=0&&h[c]<ROWS){tiles[h[c]][c]=6;beltDir[c]=bs.dir}
   const T=tiles.map(r=>r.slice(0,Wf));
   // hidden briefcase
   if(caseSpots.length){const s=caseSpots[Math.floor(rng()*caseSpots.length)];E.cases.push({...s,w:12,h:9,taken:false})}
@@ -1088,7 +1095,7 @@ function genLevel(type,d,seed,mod,raid,trait,adapt){
   }
   let agent=null;
   if(raid&&type!=="vault")agent={x:(Wf-10)*TS,y:g*TS-14,w:10,h:14,vx:0,vy:0,hp:3,inv:0,cd:60,stun:0,face:-1,alive:true,onGround:false,hitWall:false,dead:0,minX:arenaX,maxX:(Wf-7)*TS};
-  return {W:Wf,agent,tiles:T,E,boss,exitX:(Wf-5)*TS,exitY:g*TS,arenaX,par:Math.ceil(Wf*TS/2.1/60*2),chipTotal:E.chips.length};
+  return {W:Wf,agent,beltDir,tiles:T,E,boss,exitX:(Wf-5)*TS,exitY:g*TS,arenaX,par:Math.ceil(Wf*TS/2.1/60*2),chipTotal:E.chips.length};
 }
 
 /* ---------- level runtime ---------- */
@@ -1147,6 +1154,9 @@ function loop(t){
   if(running)requestAnimationFrame(loop);
 }
 function solidAt(px,py){const c=Math.floor(px/TS),r=Math.floor(py/TS);if(c<0||c>=L.W)return true;if(r<0||r>=ROWS)return false;return L.tiles[r][c]!==0}
+// Conveyor belts: tile 6, direction in L.beltDir. Moves a body that stands on one.
+function beltAt(b){const c=Math.floor((b.x+b.w/2)/TS),r=Math.floor((b.y+b.h+1)/TS);return L.beltDir&&L.tiles[r]&&L.tiles[r][c]===6?L.beltDir[c]*0.9:0}
+function pushX(b,dx){const nx=b.x+dx,ex=dx>0?nx+b.w-0.01:nx;if(!(solidAt(ex,b.y+1)||solidAt(ex,b.y+b.h/2)||solidAt(ex,b.y+b.h-1)))b.x=nx}
 function moveBody(b){
   b.hitWall=false;b.x+=b.vx;
   if(b.vx>0){const ex=b.x+b.w-0.01;if(solidAt(ex,b.y)||solidAt(ex,b.y+b.h/2)||solidAt(ex,b.y+b.h-0.01)){b.x=Math.floor(ex/TS)*TS-b.w;b.vx=0;b.hitWall=true}}
@@ -1226,6 +1236,7 @@ function step(){
   if(keys.dashPressed){keys.dashPressed=false;if(G.dash&&p.dashCd<=0&&!(p.dashAir&&!p.onGround)){p.dashT=11;p.dashDir=ax||p.face;p.face=p.dashDir;p.dashCd=50;if(!p.onGround)p.dashAir=true;p.inv=Math.max(p.inv,11);pop(p.x-4,p.y-8,"DASH","#7fd8ff");Snd.sfx("dash");stat("dashes")}}
   if(p.dashT>0){if(L.f%2===0)L.ghosts.push({x:p.x,y:p.y,face:p.face,life:12,pose:p.onGround?"r1":"jump"});p.dashT--;p.vx=p.dashDir*4.6;p.vy=0;L.parts.push({x:p.x+5,y:p.y+7,vx:-p.dashDir*0.3,vy:0,life:12,col:"rgba(127,216,255,.55)",g:0});if(L.f%2===0)L.parts.push({x:p.x+5,y:p.y+3+Math.random()*10,vx:-p.dashDir*0.8,vy:0,life:9,col:"rgba(255,255,255,.7)",g:0})}
   const wasGround=p.onGround, fallV=p.vy, prevBottom=p.y+p.h;
+  if(wasGround&&!p.ride){const bd=beltAt(p);if(bd)pushX(p,bd)}
   moveBody(p);
   // land on moving platforms
   p.ride=null;
@@ -1252,7 +1263,7 @@ function step(){
     if(Math.abs(g.x-p.x)>360)continue;
     if(g.flash>0)g.flash--;
     const stunned=g.stun>0;if(stunned)g.stun--;
-    const pv=g.vx;if(stunned)g.vx=0;g.vy=Math.min(g.vy+0.32,6);moveBody(g);
+    const pv=g.vx;if(stunned)g.vx=0;g.vy=Math.min(g.vy+0.32,6);if(g.onGround){const bd=beltAt(g);if(bd)pushX(g,bd)}moveBody(g);
     if(stunned)g.vx=pv;else if(g.hitWall)g.vx=-pv;else if(g.onGround){const ax2=pv>0?g.x+g.w+1:g.x-1;g.vx=solidAt(ax2,g.y+g.h+2)?pv:-pv}
     if(g.y>ROWS*TS+40)g.alive=false;
     if(overlap(p,g)){
@@ -1451,6 +1462,7 @@ function checkHints(p){
     for(const z of L.E.lasers)if(near(z,170))mark("laser");
     for(const sp of L.E.springs)if(near(sp,170))mark("spring");
     if(L.crumb.size)mark("plank");
+    if(L.beltDir){const bc=Math.floor(p.x/TS);for(let c=bc-10;c<=bc+12;c++)if(c>=0&&c<L.W&&L.beltDir[c]){mark("belt");break}}
     if(L.agent&&L.agent.alive&&near(L.agent,230))mark("agent");
     if(L.boss&&L.boss.alive&&near(L.boss,260)){mark(L.boss.kind||"croupier");if(L.boss.kind==="warden")hint("warden","THE WARDEN IS SHIELDED. JUMP ITS FLOOR WAVES, THEN HIT THE GLOWING CORE WHEN IT SLAMS DOWN")}
     if(nu.length)toast("Field guide updated: "+nu.join(", "))}
@@ -1462,6 +1474,7 @@ function checkHints(p){
   for(const lz of L.E.lasers)if(near(lz,150)){hint("laser","LASER GATES FLICKER BEFORE THEY FIRE. CROSS WHILE THEY ARE OFF");break}
   for(const c of L.E.cams)if(c.alive&&near(c,140)){hint("camera","CAMERAS FILL THE ALERT BAR WHEN THEY SEE YOU. FULL ALERT TRIPS THE ALARM");break}
   if(L.crumb.size)hint("plank","PLANKS DROP SHORTLY AFTER YOU STAND ON THEM. KEEP MOVING");
+  if(L.beltDir){const bc=Math.floor(p.x/TS);for(let c=bc-9;c<=bc+11;c++)if(c>=0&&c<L.W&&L.beltDir[c]){hint("belt","CONVEYOR BELT: IT CARRIES YOU AND THE GUARDS ALONG. RUN AGAINST IT OR JUMP OFF");break}}
 }
 function clearLevel(){
   running=false;Snd.sfx("win");
@@ -1730,6 +1743,10 @@ function tileArt(g,c,r){
       
       g.fillStyle="#4b5360";g.fillRect(x+2,y+3,1,3);g.fillRect(x+2,y+10,1,3);
       
+    }else if(t===6){
+      g.fillStyle="#2a2f37";g.fillRect(x,y,TS,TS);g.fillStyle="#3f4652";g.fillRect(x,y,TS,6);g.fillStyle="#1a1d22";g.fillRect(x,y+6,TS,1);g.fillRect(x,y+5,TS,1);
+      g.fillStyle="#5c6673";g.fillRect(x,y,TS,1);g.fillStyle="#4b5360";g.fillRect(x+2,y+9,3,3);g.fillRect(x+11,y+9,3,3);g.fillStyle="#1a1d22";g.fillRect(x+3,y+10,1,1);g.fillRect(x+12,y+10,1,1);
+      g.fillStyle="rgba(0,0,0,"+(0.1*(air(r-1,c)?0:1)).toFixed(2)+")";g.fillRect(x,y+7,TS,TS-7);
     }else if(t===5){
       g.fillStyle="#6b4420";g.fillRect(x,y,TS,TS);g.fillStyle="#8a5a2c";g.fillRect(x,y,TS,3);g.fillStyle="#4a2c12";g.fillRect(x,y+7,TS,1);g.fillRect(x,y+TS-1,TS,1);
       g.fillStyle="#3a220e";g.fillRect(x+4,y+3,1,4);g.fillRect(x+11,y+4,1,3);g.fillRect(x+6,y+10,1,5);g.fillRect(x+12,y+9,1,5);
@@ -1769,6 +1786,11 @@ function draw(){
       else if(L.type==="circ"){if(hv%4===0&&(L.f+hv)%90<6){ctx.fillStyle="#fff";ctx.fillRect(x+hv%13+1,y+1,1,1)}}
       else if(hv%5===0&&(L.f+hv)%80<8){ctx.fillStyle="rgba(255,220,150,.8)";ctx.fillRect(x+hv%13+1,y+1,1,1);ctx.fillRect(x+hv%13+1,y,1,1)}}}
   for(const q of L.crumb.values()){const x=q.c*TS-cx+((L.f%3)-1),y=q.r*TS;ctx.fillStyle="rgba(0,0,0,"+(0.15+0.25*(1-q.t/22)).toFixed(2)+")";ctx.fillRect(x,y,TS,7);ctx.fillStyle="rgba(255,235,200,.5)";ctx.fillRect(x+3+(L.f%5),y+1,2,1)}
+  {if(!L.belts){L.belts=[];for(let c=0;c<L.W;c++)if(L.beltDir&&L.beltDir[c])for(let r=0;r<ROWS;r++)if(L.tiles[r][c]===6){L.belts.push(c,r);break}}
+    const c0=Math.floor(cx/TS)-1,c1=c0+22;
+    for(let k=0;k<L.belts.length;k+=2){const c=L.belts[k];if(c<c0||c>c1)continue;const r=L.belts[k+1],x=c*TS-cx,y=r*TS,dir=L.beltDir[c];
+      const off=(((L.f*0.5*dir)%16)+16)%16;ctx.fillStyle="rgba(243,208,124,.85)";
+      for(let q=0;q<2;q++){const px=x+((off+q*8)%16);if(px>=x+TS-1)continue;if(dir>0){ctx.fillRect(px,y+1,1,1);ctx.fillRect(px+1,y+2,1,1);ctx.fillRect(px,y+3,1,1)}else{ctx.fillRect(px+1,y+1,1,1);ctx.fillRect(px,y+2,1,1);ctx.fillRect(px+1,y+3,1,1)}}}}
   for(const sp of L.E.springs){const x=Math.round(sp.x-cx);if(x<-20||x>VW+20)continue;const c=sp.t>0?3:0;
     ctx.fillStyle="#2a2f37";ctx.fillRect(x,sp.y+4,16,2);ctx.fillStyle="#7a8696";for(let k=2;k<14;k+=4)ctx.fillRect(x+k,sp.y+1+c,2,3-c);ctx.fillStyle="#d9a441";ctx.fillRect(x+1,sp.y+c,14,2);ctx.fillStyle="#f3d07c";ctx.fillRect(x+1,sp.y+c,14,1);
     if(sp.t>0)glow(x+8,sp.y,14,"rgba(243,208,124,.7)",0.8)}
@@ -2229,6 +2251,7 @@ const ENEMY_INFO={
   camera:{name:"Security camera",desc:"Sweeps a cone from the ceiling and fills your alert meter."},
   laser:{name:"Laser gate",desc:"Flickers before it fires. Cross while it is off, or dash through."},
   spring:{name:"Spring pad",desc:"Launches you high. A trail of chips marks the arc."},
+  belt:{name:"Conveyor belt",desc:"Carries you and the guards along its arrows. Run against it or use it for speed."},
   plank:{name:"Plank bridge",desc:"Drops soon after you stand on it, and grows back later."},
   agent:{name:"Rival agent",desc:"Guards the exit of a raid. Chases, jumps and fires fast shots."},
   croupier:{name:"The Croupier",desc:"A Vault boss. Throws cards, and sends shockwaves once hurt."},

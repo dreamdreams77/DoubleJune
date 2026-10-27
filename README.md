@@ -74,6 +74,7 @@ Lose all hearts, or let the rival's heist meter fill, and the run ends. Either w
 - **Snipers** (crimson turrets, from threat 3): a red aim line tracks you, locks for the last third of a second, then fires a fast shot along it. Move, jump or dash out of the line. Stomp or dart them for 5 chips.
 - **Laser gates**: they flicker before switching on. Time your crossing.
 - **Plank bridges**: wooden planks over short gaps drop about a third of a second after you step on them, and grow back after a few seconds. Keep moving, or just jump the gap.
+- **Conveyor belts** (from threat 1): metal belts with moving arrows carry you, and the goons standing on them, along at 0.9 pixels per frame. Run with one for a speed boost, run against it to make slow progress, or hold the opposite direction to stand still. Jumping off is unaffected. A belt is never placed right before a moving-platform gap.
 - **Spring pads**: step on one to be launched high. Chips are strung along the arc, and the launch always lands inside the same stretch of ground.
 - **Moving platforms**: ride them across wide gaps.
 - **Briefcase**: one per mission, hidden on a high platform. Worth a free resource.
