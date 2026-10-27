@@ -36,6 +36,11 @@ p{margin:0}
 .brand small{font-family:var(--f-pixel);font-size:10px;color:var(--muted);letter-spacing:.12em;margin-left:6px}
 html.pad-on .pad{display:flex}html.pad-on .keys{display:none}
 html.pad-lg .pad button{width:88px;height:88px;font-size:1.1em}html.pad-lg .pad button.jump{width:100px;height:100px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:8px 0 14px}
+.statcard{background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}.statcard b{display:block;font-family:var(--f-display);font-size:24px;color:var(--brass-hi);font-variant-numeric:tabular-nums}.statcard span{font-size:12px;color:var(--muted)}
+.guidehead{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 6px}.guidehead h4{margin:0;font-family:var(--f-pixel);font-size:12px;letter-spacing:.1em;color:var(--brass)}
+.guidelist{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.entry{background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}.entry h5{margin:0 0 4px;font-size:15px}.entry p{margin:0;font-size:13px;color:var(--muted)}.entry.locked{opacity:.45;border-style:dashed}.entry.locked h5{letter-spacing:.2em}
 .keyrow{display:grid;grid-template-columns:minmax(110px,1fr) repeat(3,minmax(72px,1fr));gap:6px;align-items:center;margin:6px 0}
 .keyrow .btn{min-height:36px;padding:6px 8px;font-family:var(--f-pixel);font-size:11px}
 .setrow{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:8px 0}.setrow label{display:flex;gap:8px;align-items:center}
@@ -212,7 +217,7 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
         <div class="row" id="heatPick"></div>
         <p class="muted small-note" id="heatDesc"></p>
       </div>
-      <div class="row"><button class="btn" id="btnContinue" hidden>Continue run</button><button class="btn" id="btnStart">Start a run</button><button class="btn ghost" id="btnTrain">Training mission</button><span class="muted" id="bestLine"></span></div>
+      <div class="row"><button class="btn" id="btnContinue" hidden>Continue run</button><button class="btn" id="btnStart">Start a run</button><button class="btn ghost" id="btnTrain">Training mission</button><button class="btn ghost" id="btnStats">Stats &amp; field guide</button><span class="muted" id="bestLine"></span></div>
       <p class="muted small-note" id="saveNote" hidden></p>
       <p class="muted small-note" id="trainNote">New here? The training mission teaches movement, stomping, sneaking and security, and takes about two minutes.</p>
     </div>
@@ -275,6 +280,15 @@ select{font:inherit;background:var(--bg-2);color:var(--cream);border:1px solid v
   </section>
 
   <!-- PERK PICK -->
+  <section class="screen" id="scr-stats" hidden>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between"><h2>Agent file</h2><button class="btn ghost small" id="btnStatsBack">Back</button></div>
+      <p class="muted" id="statsRank"></p>
+      <h3>Career</h3><div class="statgrid" id="statGrid"></div>
+      <h3>Field guide <span class="muted" id="guideTotal"></span></h3>
+      <div id="guide"></div>
+    </div>
+  </section>
   <section class="screen" id="scr-settings" hidden>
     <div class="panel">
       <div class="row" style="justify-content:space-between"><h2>Settings</h2><button class="btn ghost small" id="btnSetBack">Back</button></div>
@@ -509,7 +523,7 @@ const Snd=(()=>{
 addEventListener("pointerdown",()=>Snd.init(),true);
 addEventListener("keydown",e=>{Snd.init();if(e.code==="KeyM"&&!window.__keyCapture&&!e.repeat&&!e.ctrlKey&&!e.metaKey&&!/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||"")){Snd.toggleAll()}},true);
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("button");if(b&&b.id!=="btnSfx"&&b.id!=="btnMus")Snd.sfx("ui")});
-document.addEventListener("visibilitychange",()=>{if(document.hidden)Snd.suspend();else Snd.resume()});
+document.addEventListener("visibilitychange",()=>{if(document.hidden){Snd.suspend();saveMeta()}else Snd.resume()});addEventListener("pagehide",()=>saveMeta());
 $("#btnSfx").addEventListener("click",()=>Snd.setSfx(!Snd.pref.sfx));
 $("#btnMus").addEventListener("click",()=>Snd.setMusic(!Snd.pref.music));
 Snd.ui();
@@ -541,9 +555,13 @@ const has=id=>run&&run.perks.includes(id);
 /* ---------- storage ---------- */
 function loadBest(){try{return JSON.parse(localStorage.getItem("dj-best"))||null}catch(e){return null}}
 function saveBest(b){try{localStorage.setItem("dj-best",JSON.stringify(b))}catch(e){}}
-function loadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem("dj-meta"))}catch(e){}return Object.assign({xp:0,heatMax:0,kit:"standard",heat:0,trained:false,hints:{}},m||{})}
+function loadMeta(){let m=null;try{m=JSON.parse(localStorage.getItem("dj-meta"))}catch(e){}return Object.assign({xp:0,heatMax:0,kit:"standard",heat:0,trained:false,hints:{},stats:{},seen:{}},m||{})}
 function saveMeta(){try{localStorage.setItem("dj-meta",JSON.stringify(meta))}catch(e){}}
 const meta=loadMeta();
+if(!meta.stats||typeof meta.stats!=="object")meta.stats={};if(!meta.seen||typeof meta.seen!=="object")meta.seen={};
+const stat=(k,n=1)=>{meta.stats[k]=(meta.stats[k]||0)+n};
+const statMax=(k,v)=>{if(v>(meta.stats[k]||0))meta.stats[k]=v};
+function see(kind,id){const g=meta.seen[kind]||(meta.seen[kind]={});if(g[id])return false;g[id]=1;saveMeta();return true}
 const RANKS=[
   {name:"Recruit",xp:0},
   {name:"Field Agent",xp:60,unlock:"the Gambler kit"},
@@ -725,6 +743,8 @@ function renderMap(){
   if(g.boots)parts.push("Spring Heels");if(g.dash)parts.push("Phase Dash");if(run.bombs)parts.push(run.bombs+" Smoke Bomb"+(run.bombs>1?"s":""));if(g.jammer)parts.push("Signal Jammer");if(g.pen)parts.push("Dart Pen");if(g.magnet)parts.push("Magnet Cufflinks");if(run.shield)parts.push(run.shield+" Bowtie Shield"+(run.shield>1?"s":""));
   $("#gadgetLine").textContent=parts.length?"Kit: "+parts.join(" · "):"Kit: nothing yet. Visit the Gadget Bench.";
   $("#perkTags").innerHTML=run.perks.map(id=>`<span class="tag">${PERKS.find(p=>p.id===id).name.toUpperCase()}</span>`).join("");
+  for(const k of ["pen","boots","magnet","jammer","dash"])if(run.gadgets[k])see("gadget",k);if(run.bombs>0)see("gadget","bomb");if(run.shield>0)see("gadget","shield");if(run.maxHearts>3)see("gadget","medkit");
+  for(const id of run.perks)see("perk",id);
   updHeist();renderBrief();hud();saveRun();
 }
 const threatOf=i=>Math.min(9,(i===6?7:Math.min(run.cleared,6)+(run.hexes[i].rival?1:0))+(run.heat>=1?1:0));
@@ -1065,7 +1085,7 @@ function startLevel(i,tr){
   const wx=[];for(let k=0;k<44;k++)wx.push({x:Math.random()*VW,y:Math.random()*VH,s:Math.random()});
   L={...lv,type,d,mod,crumb:new Map(),regrow:[],ghosts:[],hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
     p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false,dashT:0,dashCd:0,dashAir:false,dashDir:1},safe:{x:24,y:9*TS-14}};
-  run.missions++;if(!tr){run.pending=i;saveRun()}
+  run.missions++;if(!tr){run.pending=i;saveRun();if(mod)see("mod",mod)}
   L.hintQ=[];L.hintT=0;L.hintCur="";
   if(tr)L.obj=null;
   L.title=tr?"TRAINING":(i===6?"THE VAULT":(run.hexes[i].rival?"RAID: ":"")+run.hexes[i].name.toUpperCase());
@@ -1103,12 +1123,12 @@ function sap(){
     if(dx*p.face<=0||Math.abs(dx)>18||Math.abs(g.y-p.y)>10)continue;
     if(!g.alerted&&Math.sign(g.vx)===p.face){
       if(g.armor>0){g.armor=0;g.big=true;g.stun=70;burst(g.x+6,g.y+4,"#c9ced6",8);pop(g.x-4,g.y-10,"ARMOR OFF","#c9ced6")}
-      else{g.alive=false;burst(g.x+6,g.y+7,"#97a9ff",12);addChips(takedown(g.big?4:2)+1,g.x,g.y-6);pop(g.x-6,g.y-14,"SILENT","#97a9ff")}
+      else{g.alive=false;stat("silent");burst(g.x+6,g.y+7,"#97a9ff",12);addChips(takedown(g.big?4:2)+1,g.x,g.y-6);pop(g.x-6,g.y-14,"SILENT","#97a9ff")}
     }else{g.stun=Math.max(g.stun||0,30);burst(g.x+6,g.y+5,"#fff7d6",5,2);pop(g.x-2,g.y-10,"STUNNED","#fff7d6")}
     return;
   }
 }
-const takedown=n=>{Snd.sfx("kill");L.kills++;L.combo=(L.combo||0)+1;const link=Math.min(L.combo-1,5);if(link>0)pop(L.p.x-6,L.p.y-16,"x"+L.combo+" CHAIN","#ffcf5a");return n+link*(has("chain")?2:1)+(has("pickpocket")?2:0)};
+const takedown=n=>{Snd.sfx("kill");L.kills++;L.combo=(L.combo||0)+1;stat("takedowns");statMax("bestChain",L.combo);const link=Math.min(L.combo-1,5);if(link>0)pop(L.p.x-6,L.p.y-16,"x"+L.combo+" CHAIN","#ffcf5a");return n+link*(has("chain")?2:1)+(has("pickpocket")?2:0)};
 // returns true if the goon died; armored goons lose their plating and are stunned first
 function hitGoon(g){
   if(g.armor>0){Snd.sfx("clank");g.armor=0;g.big=true;g.stun=45;L.shake=3;burst(g.x+6,g.y+4,"#c9ced6",8);pop(g.x-4,g.y-8,"ARMOR OFF","#c9ced6");addChips(1,g.x,g.y-14);return false}
@@ -1155,7 +1175,7 @@ function step(){
     for(let k=0;k<18;k++)L.parts.push({x:p.x+5+(Math.random()-.5)*30,y:p.y+4+(Math.random()-.5)*16,vx:(Math.random()-.5)*1.4,vy:-Math.random()*0.8,life:40,col:"rgba(205,210,222,.6)",g:0});
     pop(p.x-6,p.y-10,"SMOKE","#c9ced6");$("#btnBomb").textContent="BOMB ×"+run.bombs;$("#btnBomb").hidden=run.bombs<=0}}
   if(p.dashCd>0)p.dashCd--;
-  if(keys.dashPressed){keys.dashPressed=false;if(G.dash&&p.dashCd<=0&&!(p.dashAir&&!p.onGround)){p.dashT=11;p.dashDir=ax||p.face;p.face=p.dashDir;p.dashCd=50;if(!p.onGround)p.dashAir=true;p.inv=Math.max(p.inv,11);pop(p.x-4,p.y-8,"DASH","#7fd8ff");Snd.sfx("dash")}}
+  if(keys.dashPressed){keys.dashPressed=false;if(G.dash&&p.dashCd<=0&&!(p.dashAir&&!p.onGround)){p.dashT=11;p.dashDir=ax||p.face;p.face=p.dashDir;p.dashCd=50;if(!p.onGround)p.dashAir=true;p.inv=Math.max(p.inv,11);pop(p.x-4,p.y-8,"DASH","#7fd8ff");Snd.sfx("dash");stat("dashes")}}
   if(p.dashT>0){if(L.f%2===0)L.ghosts.push({x:p.x,y:p.y,face:p.face,life:12,pose:p.onGround?"r1":"jump"});p.dashT--;p.vx=p.dashDir*4.6;p.vy=0;L.parts.push({x:p.x+5,y:p.y+7,vx:-p.dashDir*0.3,vy:0,life:12,col:"rgba(127,216,255,.55)",g:0});if(L.f%2===0)L.parts.push({x:p.x+5,y:p.y+3+Math.random()*10,vx:-p.dashDir*0.8,vy:0,life:9,col:"rgba(255,255,255,.7)",g:0})}
   const wasGround=p.onGround, fallV=p.vy, prevBottom=p.y+p.h;
   moveBody(p);
@@ -1227,7 +1247,7 @@ function step(){
     if(Math.abs(dx)<64&&Math.abs(pcy-(g.y+7))<18&&Math.sign(dx)===Math.sign(g.vx)){g.alerted=true;g.vx*=1.7;L.alert+=24*am;seen=true;pop(g.x+4,g.y-6,"!","#e04b63")}}
   if(!seen&&!L.alarm)L.alert=Math.max(0,L.alert-0.12);
   L.alert=Math.min(run.training?99:100,L.alert);if(L.alert>=100&&!L.alarm)tripAlarm();
-  for(const c of L.E.cases)if(!c.taken&&overlap(p,c)){c.taken=true;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]++;run.briefcases++;Snd.sfx("case");hud();pop(c.x-14,c.y-6,"INTEL: +1 "+RES[k].name.toUpperCase(),"#97a9ff");burst(c.x+6,c.y,"#97a9ff",14);L.gotCase=k}
+  for(const c of L.E.cases)if(!c.taken&&overlap(p,c)){c.taken=true;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]++;run.briefcases++;stat("cases");Snd.sfx("case");hud();pop(c.x-14,c.y-6,"INTEL: +1 "+RES[k].name.toUpperCase(),"#97a9ff");burst(c.x+6,c.y,"#97a9ff",14);L.gotCase=k}
   // boss
   const B=L.boss;
   if(B&&B.alive){
@@ -1306,7 +1326,7 @@ function step(){
   if(p.x+p.w>L.exitX+6){if((L.boss&&L.boss.alive)||(L.agent&&L.agent.alive)){p.x=L.exitX+6-p.w;p.vx=0;if(L.f%60===0)pop(p.x-20,p.y-8,L.boss&&L.boss.alive?"BEAT THE CROUPIER":"DEFEAT THE AGENT","#e04b63")}else{L.exiting=1;burst(L.exitX+11,L.exitY-16,"#f3d07c",14,2)}}
 }
 function tripAlarm(){
-  Snd.sfx("alarmstart");L.alarm=true;L.alarmEver=true;L.alert=100;run.alarms++;L.shake=10;pop(L.p.x-14,L.p.y-14,"ALARM!","#e04b63");
+  Snd.sfx("alarmstart");stat("alarms");L.alarm=true;L.alarmEver=true;L.alert=100;run.alarms++;L.shake=10;pop(L.p.x-14,L.p.y-14,"ALARM!","#e04b63");
   const n=run.heat>=4?4:2;
   for(let k=0;k<n;k++){let c=Math.floor((L.p.x+110+k*36)/TS);
     for(let t=0;t<8&&c<L.W-7;t++,c++){let r=0;while(r<ROWS&&L.tiles[r][c]===0)r++;
@@ -1322,11 +1342,11 @@ function objState(){
 }
 function hitAgent(A){
   Snd.sfx(A.hp<=1?"bosskill":"bosshit");A.hp--;A.inv=36;A.stun=18;L.shake=6;burst(A.x+5,A.y+6,"#7fd8ff",10);
-  if(A.hp<=0){A.alive=false;L.shake=14;L.freeze=8;burst(A.x+5,A.y+6,"#e04b63",16,4);run.heist=Math.max(0,run.heist-1);addChips(10,A.x,A.y-10);pop(A.x-14,A.y-22,"AGENT DOWN · HEIST −1","#7fd8ff")}
+  if(A.hp<=0){A.alive=false;stat("agents");L.shake=14;L.freeze=8;burst(A.x+5,A.y+6,"#e04b63",16,4);run.heist=Math.max(0,run.heist-1);addChips(10,A.x,A.y-10);pop(A.x-14,A.y-22,"AGENT DOWN · HEIST −1","#7fd8ff")}
   else pop(A.x-4,A.y-12,"HIT","#7fd8ff");
 }
 function killBoss(){
-  const B=L.boss;Snd.sfx("bosskill");B.alive=false;L.shake=24;L.freeze=10;L.cards=[];
+  const B=L.boss;Snd.sfx("bosskill");stat("bosses");B.alive=false;L.shake=24;L.freeze=10;L.cards=[];
   for(let k=0;k<4;k++)burst(B.x+Math.random()*24,B.y+Math.random()*34,["#f3d07c","#e04b63","#f5ead2"][k%3],14,4);
   addChips(30,B.x,B.y-10);pop(B.x-10,B.y-20,"THE HOUSE FOLDS","#f3d07c");
 }
@@ -1342,6 +1362,17 @@ function checkHints(p){
   }
   if(L.f%15!==0)return;
   const near=(o,r)=>Math.abs(o.x-p.x)<r;
+  {const nu=[];const mark=(id)=>{if(see("enemy",id))nu.push(ENEMY_INFO[id].name)};
+    for(const g of L.E.goons)if(g.alive&&near(g,170)){mark("goon");if(g.armor>0)mark("armor")}
+    for(const d of L.E.drones)if(d.alive&&near(d,170))mark("drone");
+    for(const t of L.E.turrets)if(t.alive&&near(t,200))mark(t.sniper?"sniper":"turret");
+    for(const c of L.E.cams)if(c.alive&&near(c,170))mark("camera");
+    for(const z of L.E.lasers)if(near(z,170))mark("laser");
+    for(const sp of L.E.springs)if(near(sp,170))mark("spring");
+    if(L.crumb.size)mark("plank");
+    if(L.agent&&L.agent.alive&&near(L.agent,230))mark("agent");
+    if(L.boss&&L.boss.alive&&near(L.boss,260))mark("croupier");
+    if(nu.length)toast("Field guide updated: "+nu.join(", "))}
   if(!G.pen)for(const g of L.E.goons)if(g.alive&&!g.alerted&&near(g,56)&&Math.abs(g.y-p.y)<12){hint("sap","NO DART PEN YET? PRESS X NEXT TO A GOON. FROM BEHIND IT IS A SILENT TAKEDOWN");break}
   for(const g of L.E.goons)if(g.alive&&g.armor>0&&near(g,150)){hint("armor","ARMORED GOON: ONE HIT STRIPS THE ARMOR AND STUNS IT. HIT IT AGAIN TO FINISH");break}
   for(const t of L.E.turrets)if(t.alive&&t.sniper&&near(t,200)){hint("sniper","SNIPER: THE RED LINE LOCKS ON, THEN FIRES. MOVE, JUMP OR DASH OUT OF IT");break}
@@ -1360,17 +1391,17 @@ function clearLevel(){
   if(L.hex===6){setTimeout(()=>endRun(true),500);return}
   const h=run.hexes[L.hex],raid=h.rival;
   const modName=h.mod?MODS[h.mod].name:"",modBonus=h.mod?1:0;h.rival=false;h.claimed=true;run.res[h.type]+=(raid?3:2)+modBonus;
-  if(raid){run.heist=Math.max(0,run.heist-3);run.retakes++}
+  stat("missions");if(raid){stat("raids");run.heist=Math.max(0,run.heist-3);run.retakes++}
   const healed=run.hearts<run.maxHearts;if(healed)run.hearts++;
   const os=objState();let objLine="";
-  if(os){if(os.ok){run.objectives++;run.chips+=12;run.earned+=12;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]++;objLine=`<p style="color:var(--circ)">Bonus complete: +12 chips, +1 ${RES[k].name}</p>`}else objLine=`<p class="muted">Bonus objective missed.</p>`}
+  if(os){if(os.ok){run.objectives++;stat("objectives");run.chips+=12;run.earned+=12;const ks=["gold","circ","intel"],k=ks[Math.floor(Math.random()*3)];run.res[k]++;objLine=`<p style="color:var(--circ)">Bonus complete: +12 chips, +1 ${RES[k].name}</p>`}else objLine=`<p class="muted">Bonus objective missed.</p>`}
   h.obj=OBJ_KEYS[Math.floor(Math.random()*OBJ_KEYS.length)];h.mod=pickMod(Math.random);
   rivalTurn();
   hud();
   const o=$("#ovl");o.hidden=false;
   const avail=perkPool();
   o.innerHTML=`<span class="label">${raid?"Raid complete":"Mission complete"}</span><h2>${h.name} is yours</h2><p>+${(raid?3:2)+modBonus} ${RES[h.type].name}${modBonus?" (incl. "+modName+" +1)":""} · +${L.got} chips${healed?" · +1 heart":""}${raid?" · heist −3":""}</p>${objLine}<button class="btn" id="btnBack">${avail.length?"Choose a dossier":"Back to map"}</button>`;
-  run.pending=null;run.perkPending=avail.length>0;selHex=null;rolled=false;saveRun();
+  run.pending=null;run.perkPending=avail.length>0;selHex=null;rolled=false;saveRun();saveMeta();
   $("#btnBack").addEventListener("click",()=>{selHex=null;rolled=false;if(run.heist>=run.heistMax){endRun(false,"heist");return}if(avail.length)showPerks();else toMap()});$("#btnBack").focus();
 }
 /* ---------- between-mission events ---------- */
@@ -1393,7 +1424,7 @@ const EVENTS=[
     {label:"Don't risk it",desc:"Nothing happens.",ok:()=>true,go:()=>"You let the courier pass."}]}
 ];
 function showEvent(){
-  const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  const evi=Math.floor(Math.random()*EVENTS.length),ev=EVENTS[evi];see("event",String(evi));
   $("#evTitle").textContent=ev.title;$("#evText").textContent=ev.text;
   $("#evChoices").innerHTML=ev.choices.map((c,i)=>`<button class="perk" data-ev="${i}" ${c.ok()?"":"disabled"}><span class="label">${c.ok()?"Choice":"Can't afford"}</span><h3>${c.label}</h3><span>${typeof c.desc==="function"?c.desc():c.desc}</span></button>`).join("");
   $$("[data-ev]").forEach(b=>b.addEventListener("click",()=>{
@@ -1411,7 +1442,7 @@ function showPerks(){
   show("scr-perk");
 }
 function endRun(won,why){
-  clearSave();running=false;Snd.sfx(won?"victory":"lose");run.won=won;
+  clearSave();running=false;if(!run.training){stat("runs");if(won)stat("wins");stat("chips",run.earned||0);saveMeta()}Snd.sfx(won?"victory":"lose");run.won=won;
   const best=loadBest()||{cleared:0,earned:0,wins:0};
   const nb={cleared:Math.max(best.cleared,held()),earned:Math.max(best.earned,run.earned),wins:(best.wins||0)+(won?1:0)};saveBest(nb);
   const before=rankOf(meta.xp);
@@ -2059,6 +2090,44 @@ $("#btnTrade").addEventListener("click",()=>{
   if(run.res[g]<rate){toast("You need "+rate+" "+RES[g].name+".");return}
   run.res[g]-=rate;run.res[t]++;toast("Traded "+rate+" "+RES[g].name+" for 1 "+RES[t].name);renderBench();
 });
+
+/* ---------- stats and field guide ---------- */
+const ENEMY_INFO={
+  goon:{name:"Security goon",desc:"Patrols a ledge. Stomp it, dart it, or sap it from behind."},
+  armor:{name:"Armored goon",desc:"Steel plating. One hit strips it and stuns, the next one kills."},
+  drone:{name:"Patrol drone",desc:"Hovers and sweeps a searchlight down. Stomp or dart it."},
+  turret:{name:"Turret",desc:"Fires slow shots along the ground. Jump them or stomp the turret."},
+  sniper:{name:"Sniper",desc:"A red aim line locks on, then fires a fast shot. Move or dash."},
+  camera:{name:"Security camera",desc:"Sweeps a cone from the ceiling and fills your alert meter."},
+  laser:{name:"Laser gate",desc:"Flickers before it fires. Cross while it is off, or dash through."},
+  spring:{name:"Spring pad",desc:"Launches you high. A trail of chips marks the arc."},
+  plank:{name:"Plank bridge",desc:"Drops soon after you stand on it, and grows back later."},
+  agent:{name:"Rival agent",desc:"Guards the exit of a raid. Chases, jumps and fires fast shots."},
+  croupier:{name:"The Croupier",desc:"The Vault boss. Throws cards, and sends shockwaves once hurt."}
+};
+function renderStats(){
+  const st=meta.stats,g=k=>st[k]||0,rank=RANKS[rankOf(meta.xp)];
+  $("#statsRank").textContent=`${rank.name} · ${meta.xp} XP · Heat ${meta.heatMax} unlocked`;
+  const winPct=g("runs")?Math.round(100*g("wins")/g("runs")):0;
+  const cards=[["Runs",g("runs")],["Vaults cracked",g("wins")],["Win rate",winPct+"%"],["Missions won",g("missions")],["Raids won",g("raids")],["Takedowns",g("takedowns")],["Silent takedowns",g("silent")],["Best chain",g("bestChain")],["Chips earned",g("chips")],["Bonus objectives",g("objectives")],["Briefcases",g("cases")],["Alarms tripped",g("alarms")],["Dashes",g("dashes")],["Rival agents beaten",g("agents")],["Croupiers beaten",g("bosses")]];
+  $("#statGrid").innerHTML=cards.map(([l,v])=>`<div class="statcard"><b>${v}</b><span>${l}</span></div>`).join("");
+  const cats=[
+    ["Enemies and hazards","enemy",Object.entries(ENEMY_INFO).map(([id,e])=>[id,e.name,e.desc])],
+    ["Gadgets","gadget",ITEMS.map(i=>[i.id,i.name,i.desc])],
+    ["Dossiers","perk",PERKS.map(p=>[p.id,p.name,p.desc])],
+    ["Complications","mod",Object.entries(MODS).map(([id,m])=>[id,m.name,m.desc])],
+    ["Field events","event",EVENTS.map((e,i)=>[String(i),e.title,e.text])]
+  ];
+  let seen=0,total=0;
+  $("#guide").innerHTML=cats.map(([title,kind,items])=>{
+    const sk=meta.seen[kind]||{},n=items.filter(([id])=>sk[id]).length;seen+=n;total+=items.length;
+    return `<div class="guidehead"><h4>${title.toUpperCase()}</h4><span class="muted">${n} / ${items.length}</span></div><div class="guidelist">`+
+      items.map(([id,name,desc])=>sk[id]?`<div class="entry"><h5>${name}</h5><p>${desc}</p></div>`:`<div class="entry locked"><h5>???</h5><p>Not yet discovered.</p></div>`).join("")+`</div>`;
+  }).join("");
+  $("#guideTotal").textContent=`· ${seen} / ${total} discovered`;
+}
+$("#btnStats").addEventListener("click",()=>{renderStats();show("scr-stats")});
+$("#btnStatsBack").addEventListener("click",()=>{show("scr-title");renderAgency()});
 
 /* ---------- flow ---------- */
 function begin(tr){newRun();if(tr)run.training=true;clearKeys();$("#dice").hidden=true;$("#dResult").textContent="";$("#btnGo").hidden=true;bj.state="bet";bj.p=[];bj.d=[];renderBJ();$("#bjMsg").textContent="Place a bet. Dealer stands on 17, blackjack pays 3 to 2.";show("scr-map");renderMap()}

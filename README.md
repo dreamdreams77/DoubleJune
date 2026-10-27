@@ -4,6 +4,12 @@ A spy-platformer roguelite in one HTML file. You play **Agent Jesper**, a pocket
 
 No build step, no dependencies. Open `index.html` in a browser and play.
 
+## Agent file: stats and field guide
+
+**Stats & field guide** on the title screen opens your lifetime record: runs, Vaults cracked and win rate, missions and raids won, takedowns, silent takedowns, best chain, chips earned, bonus objectives, briefcases, alarms tripped, dashes, rival agents and Croupiers beaten.
+
+Below it is a field guide that fills in as you play. Enemies and hazards are logged the first time they come near you (a toast says "Field guide updated"), gadgets and dossiers when you own them, complications when you play one, and field events when they happen. Undiscovered entries show as `???`, so the guide doubles as a checklist. Stats are saved as you go and when the tab is hidden.
+
 ## Saving and resuming
 
 Your run saves automatically every time you reach the map and right after each dice roll, so a refresh, a crash or a phone reclaiming the tab doesn't lose it. The title screen shows **Continue run** with a summary. A few rules keep the save honest:
