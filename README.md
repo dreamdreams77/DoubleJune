@@ -134,6 +134,14 @@ The **SFX** and **MUSIC** buttons in the header switch each one off separately, 
 
 After a mission (and its dossier pick), there is a 40% chance of a short event before you return to the map: a defector selling the rival's timetable, a smuggler's cache, a dealer with a tell, a safehouse offer, or a courier you can feed false intel. Each offers a risky choice or a safe one. Choices you can't afford are greyed out.
 
+### Mission types
+
+About half of the unclaimed hexes are a special **mission type**, shown as a tag on the map (▣ SIEGE) and described in the brief. Unlike complications they change the level's structure, and each pays its own bonus when you clear it. They stack with a complication on the same hex.
+
+| Type | What it is | Bonus |
+|---|---|---|
+| Siege | A short flat arena. Three waves of guards (goons, armored goons, turrets and snipers as threat rises) arrive as you reach each trigger, and the exit stays locked until every guard is down. A raid or ambush makes the waves bigger and more armored | +15 chips |
+
 ### Complications
 
 Many unclaimed hexes carry a complication, shown as a warning tag on the map and spelled out in the brief. Each one changes the level and pays **+1 resource** of the hex's type when you clear it.
