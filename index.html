@@ -1048,11 +1048,14 @@ function genLevel(type,d,seed,mod,raid,trait,adapt,arch){
   const chip=(c,r)=>E.chips.push({x:c*TS+4,y:r*TS+4,taken:false});
   const fort=trait==="fortified",nest=trait==="nest",ad=adapt||{};
   const goon=(c,g,tough)=>E.goons.push({x:c*TS+2,y:g*TS-14,w:12,h:14,vx:(rng()<0.5?-1:1)*(0.45+d*0.06),vy:0,alive:true,dead:0,armor:((tough||fort)&&(d>=2||fort||ad.armor)&&rng()<(fort?0.85:0.18+d*0.04+(ad.armor?0.3:0)))?1:0,stun:0});
-  const goonP=0.28+d*0.06+(type==="intel"?0.18:0)+(type==="vault"?0.1:0)+(mod==="rush"?0.2:0);
-  const chipBoost=(type==="gold"?1.6:1)*(mod==="rush"?1.8:1);
-  const camP=mod==="blackout"?0:0.14+d*0.04+(type==="intel"?0.14:0);
+  const goonP=(0.28+d*0.06+(type==="intel"?0.18:0)+(type==="vault"?0.1:0)+(mod==="rush"?0.2:0))*(arch==="chase"?0.75:1);
+  const chipBoost=(type==="gold"?1.6:1)*(mod==="rush"?1.8:1)*(arch==="chase"?1.3:1);
+  const camP=mod==="blackout"||arch==="tunnel"?0:0.14+d*0.04+(type==="intel"?0.14:0);
   const cam=c=>E.cams.push({x:c*TS+3,y:10,w:10,h:6,t:rng()*6,ang:Math.PI/2,alive:true,see:false});
   const W={gap:20,step:15,plat:18,flat:15,laser:6+d*2.5+(type==="circ"?12:0)+(type==="vault"?8:0)+(mod==="lockdown"?12:0),drone:10+d+(ad.drones?10:0),moving:d>=1?9+d:0,turret:(d>=2||type==="circ"||nest||ad.snipers)?6+d*1.5+(nest?10:0)+(ad.snipers?5:0):0,crumble:d>=1?8:0,conveyor:d>=1?10:0};
+  if(arch==="chase"){W.moving=0;W.laser*=0.5}
+  if(arch==="tunnel"){W.moving=0;W.drone=0;W.plat*=0.5;W.laser*=2;W.turret=(W.turret||0)*1.6+4}
+  const gMin=arch==="tunnel"?8:6;
   const tot=Object.values(W).reduce((a,b)=>a+b,0);
   const pickSeg=()=>{let r=rng()*tot;for(const [k,v] of Object.entries(W)){if((r-=v)<0)return k}return "flat"};
   let x=0,g=9,lastSeg=null;
@@ -1062,10 +1065,10 @@ function genLevel(type,d,seed,mod,raid,trait,adapt,arch){
     if(seg==="gap"){
       const gw=R(2,Math.min(4,2+Math.floor(d/3)));
       for(let i=0;i<gw;i++){setH(x+i,-1);chip(x+i,g-3-(i===Math.floor(gw/2)?1:0))}
-      x+=gw;g=clamp(g+(gw>=4?R(0,1):R(-1,1)),6,10);
+      x+=gw;g=clamp(g+(gw>=4?R(0,1):R(-1,1)),gMin,10);
       const n=R(3,6);for(let i=0;i<n;i++)setH(x+i,g);x+=n;
     }else if(seg==="step"){
-      g=clamp(g+(rng()<0.5?-1:1)*R(1,2),6,10);
+      g=clamp(g+(rng()<0.5?-1:1)*R(1,2),gMin,10);
       const n=R(4,8);for(let i=0;i<n;i++)setH(x+i,g);
       if(rng()<goonP)goon(x+n-2,g);x+=n;
     }else if(seg==="plat"){
@@ -1077,7 +1080,7 @@ function genLevel(type,d,seed,mod,raid,trait,adapt,arch){
     }else if(seg==="flat"){
       const n=R(5,9);for(let i=0;i<n;i++)setH(x+i,g);
       for(let i=1;i<n-1;i++)if(rng()<0.45*chipBoost)chip(x+i,g-1);
-      if(n>=8&&rng()<0.25){E.springs.push({x:(x+1)*TS,y:g*TS-6,w:16,h:6,t:0});chip(x+3,g-5);chip(x+4,g-6);chip(x+5,g-6)}
+      if(n>=8&&arch!=="tunnel"&&rng()<0.25){E.springs.push({x:(x+1)*TS,y:g*TS-6,w:16,h:6,t:0});chip(x+3,g-5);chip(x+4,g-6);chip(x+5,g-6)}
       if(rng()<goonP*1.4)goon(x+Math.floor(n/2),g,true);if(rng()<camP)cam(x+1);x+=n;
     }else if(seg==="laser"){
       const n=R(5,7);for(let i=0;i<n;i++)setH(x+i,g);
@@ -1115,6 +1118,7 @@ function genLevel(type,d,seed,mod,raid,trait,adapt,arch){
   for(let c=0;c<Wf;c++){if(h[c]<0)continue;for(let rr=h[c];rr<ROWS;rr++)tiles[rr][c]=1}
   const beltDir=new Int8Array(Wf);
   for(const bs of beltSpecs)for(let c=bs.c0;c<=bs.c1&&c<Wf;c++)if(h[c]>=0&&h[c]<ROWS){tiles[h[c]][c]=6;beltDir[c]=bs.dir}
+  if(arch==="tunnel"){for(let c=0;c<Wf;c++)for(let r=0;r<3;r++)tiles[r][c]=1;E.chips=E.chips.filter(c=>tiles[Math.floor(c.y/TS)][Math.floor(c.x/TS)]!==1||Math.floor(c.y/TS)>=3)}
   const T=tiles.map(r=>r.slice(0,Wf));
   // hidden briefcase
   if(caseSpots.length){const s=caseSpots[Math.floor(rng()*caseSpots.length)];E.cases.push({...s,w:12,h:9,taken:false})}
@@ -1171,7 +1175,7 @@ function startLevel(i,tr){
   L={...lv,type,d,mod,arch,crumb:new Map(),regrow:[],ghosts:[],rings:[],hurtT:0,hex:i,theme:THEMES[type],hist:[],dying:0,exiting:0,fog:Math.random()*1000,alert:0,alarm:false,alarmEver:false,kills:0,obj:i===6?null:run.hexes[i].obj,f:0,cam:0,shake:0,flash:0,freeze:0,darts:[],shots:[],cards:[],parts:[],pops:[],wx,got:0,cover:has("cover")?1:0,
     p:{x:24,y:9*TS-14,w:10,h:14,vx:0,vy:0,face:1,onGround:true,coyote:0,buffer:0,jumpsUsed:0,inv:0,cool:0,anim:0,sx:1,sy:1,ride:null,hitWall:false,dashT:0,dashCd:0,dashAir:false,dashDir:1},safe:{x:24,y:9*TS-14}};
   run.missions++;if(!tr){run.pending=i;saveRun();if(mod)see("mod",mod)}
-  L.hintQ=[];L.hintT=0;L.hintCur="";L.ambush=ambush;if(ambush)stat("ambushes");if(arch)see("arch",arch);
+  L.hintQ=[];L.hintT=0;L.hintCur="";L.tunnel=arch==="tunnel";L.chase=arch==="chase"?{x:-60,v:0.8+0.06*Math.min(d,8),start:210,cool:0}:null;L.ambush=ambush;if(ambush)stat("ambushes");if(arch)see("arch",arch);
   if(tr)L.obj=null;
   L.title=tr?"TRAINING":(i===6?"THE VAULT":(run.hexes[i].rival?"RAID: ":ambush?"AMBUSH: ":"")+run.hexes[i].name.toUpperCase());
   $("#lvlName").textContent=tr?"TRAINING":L.title+" · THREAT "+(d+1)+(arch?" · "+ARCHS[arch].name.toUpperCase():"")+(mod?" · "+MODS[mod].name.toUpperCase():"");
@@ -1255,7 +1259,7 @@ function step(){
   if(keys.jumpPressed){p.buffer=7;keys.jumpPressed=false}else p.buffer--;
   if(p.buffer>0){
     if(p.coyote>0){p.vy=jumpV;p.coyote=0;p.buffer=0;p.jumpsUsed=1;p.sx=0.8;p.sy=1.25;dust(p.x+5,p.y+14,4);Snd.sfx("jump")}
-    else if(G.boots&&p.jumpsUsed<2){p.vy=jumpV+0.6;p.jumpsUsed=2;p.buffer=0;p.sx=0.8;p.sy=1.2;Snd.sfx("jump2");burst(p.x+5,p.y+14,"#f3d07c",8,2)}
+    else if(G.boots&&!L.tunnel&&p.jumpsUsed<2){p.vy=jumpV+0.6;p.jumpsUsed=2;p.buffer=0;p.sx=0.8;p.sy=1.2;Snd.sfx("jump2");burst(p.x+5,p.y+14,"#f3d07c",8,2)}
   }
   if(p.boost&&p.vy>=0)p.boost=0;
   if(!keys.jump&&p.vy<-2.2&&!p.boost)p.vy=-2.2;
@@ -1417,6 +1421,9 @@ function step(){
   if(L.siege&&!L.siege.done){const S=L.siege;
     while(S.next<S.waves.length&&p.x>S.waves[S.next].x){spawnWave(S,S.next);S.next++}
     if(S.next>=S.waves.length&&!L.E.goons.some(e=>e.siege&&e.alive)&&!L.E.drones.some(e=>e.siege&&e.alive)&&!L.E.turrets.some(e=>e.siege&&e.alive)){S.done=true;pop(p.x-16,p.y-24,"ARENA CLEARED","#3cc4b2");Snd.sfx("win")}}
+  if(L.chase&&L.f>L.chase.start&&!L.exiting&&!L.dying){const C=L.chase;C.x+=C.v;if(C.cool>0)C.cool--;
+    if(p.x<C.x+16&&C.cool<=0){L.chaseCaught=true;C.cool=90;C.x=Math.max(-60,p.x-170);pop(p.x-14,p.y-22,"CAUGHT","#ff5a76");L.shake=10;hurt(false)}
+    if(p.x-C.x<130&&L.f%40===0)Snd.sfx("alarm")}
   checkHints(p);
   if(L.hintT>0)L.hintT--;else if(L.hintQ.length){L.hintCur=L.hintQ.shift();L.hintT=300}
   if(L.alarm&&L.f%30===0)Snd.sfx("alarm");Snd.mood(L.alarm?2:(L.boss&&L.boss.alive&&p.x>L.arenaX-80)?1:0);
@@ -1509,6 +1516,8 @@ function checkHints(p){
   for(const sp of L.E.springs)if(near(sp,160)){hint("spring","SPRING PAD: STEP ON IT FOR A BIG LAUNCH. THE CHIPS SHOW THE ARC");break}
   for(const lz of L.E.lasers)if(near(lz,150)){hint("laser","LASER GATES FLICKER BEFORE THEY FIRE. CROSS WHILE THEY ARE OFF");break}
   for(const c of L.E.cams)if(c.alive&&near(c,140)){hint("camera","CAMERAS FILL THE ALERT BAR WHEN THEY SEE YOU. FULL ALERT TRIPS THE ALARM");break}
+  if(L.chase)hint("chase","A SECURITY SHUTTER IS CLOSING IN FROM BEHIND. KEEP MOVING: IF IT CATCHES YOU IT COSTS A HEART")
+  if(L.tunnel)hint("tunnel","LOW CEILING AHEAD. NO DOUBLE JUMP IN HERE: TIME YOUR SINGLE JUMPS")
   if(L.siege)hint("siege","SIEGE: THREE WAVES OF GUARDS ARRIVE AS YOU ADVANCE. THE EXIT STAYS LOCKED UNTIL ALL OF THEM ARE DOWN")
   if(L.crumb.size)hint("plank","PLANKS DROP SHORTLY AFTER YOU STAND ON THEM. KEEP MOVING");
   if(L.beltDir){const bc=Math.floor(p.x/TS);for(let c=bc-9;c<=bc+11;c++)if(c>=0&&c<L.W&&L.beltDir[c]){hint("belt","CONVEYOR BELT: IT CARRIES YOU AND THE GUARDS ALONG. RUN AGAINST IT OR JUMP OFF");break}}
@@ -1962,6 +1971,11 @@ function draw(){
     if(L.agent&&L.agent.alive)hole(L.agent.x-cx+5,L.agent.y+7,34,.8);
     lctx.globalAlpha=1;lctx.globalCompositeOperation="source-over";ctx.drawImage(lightC,0,0);
     glow(pxl,pyl,46,"rgba(255,226,170,.28)",0.35)}
+  if(L.chase&&L.f>L.chase.start-30){const C=L.chase,wx=Math.round(C.x-cx),dist=p.x-C.x;
+    if(wx+16>0){const w=Math.min(VW+2,wx+16);ctx.fillStyle="#12060c";ctx.fillRect(0,0,w,VH);
+      for(let y=0;y<VH;y+=12){ctx.fillStyle=((y/12|0)%2)?"#e04b63":"#3a0f1c";ctx.fillRect(w-14,y,14,6);ctx.fillStyle=((y/12|0)%2)?"#3a0f1c":"#e04b63";ctx.fillRect(w-14,y+6,14,6)}
+      ctx.fillStyle="#1a0a10";ctx.fillRect(w-16,0,2,VH);glow(w,VH/2,70,"rgba(255,60,80,.55)",0.7)}
+    else if(dist<260&&!settings.calm){const a=0.35+0.6*Math.max(0,1-dist/260)*(0.6+0.4*Math.sin(L.f*0.3));ctx.fillStyle="rgba(255,90,118,"+a.toFixed(2)+")";ctx.beginPath();ctx.moveTo(10,VH/2-8);ctx.lineTo(2,VH/2);ctx.lineTo(10,VH/2+8);ctx.fill()}}
   if(run.hearts<=1&&!run.training&&!settings.calm){const a=0.1+0.08*Math.sin(L.f*0.11);const lg=ctx.createRadialGradient(VW/2,VH/2,VH*0.35,VW/2,VH/2,VW*0.62);lg.addColorStop(0,"rgba(224,40,70,0)");lg.addColorStop(1,"rgba(224,40,70,"+a.toFixed(3)+")");ctx.fillStyle=lg;ctx.fillRect(0,0,VW,VH)}
   {const warn=(wx,wy,toward)=>{const sx=wx-cx;if(sx>=-4&&sx<=VW+4)return;if(!toward)return;const left=sx<0,ex=left?2:VW-8,ey=clamp(Math.round(wy),14,VH-22),a=0.55+0.4*Math.sin(L.f*0.4);
       ctx.fillStyle="rgba(255,90,118,"+a.toFixed(2)+")";ctx.beginPath();if(left){ctx.moveTo(ex+6,ey-5);ctx.lineTo(ex,ey);ctx.lineTo(ex+6,ey+5)}else{ctx.moveTo(ex,ey-5);ctx.lineTo(ex+6,ey);ctx.lineTo(ex,ey+5)}ctx.fill()};
@@ -2002,7 +2016,7 @@ function draw(){
   // intro banner
   if(L.f<110){const a=L.f<90?1:1-(L.f-90)/20;ctx.globalAlpha=a;ctx.fillStyle="rgba(22,10,16,.8)";ctx.fillRect(0,70,VW,40);ctx.fillStyle="#d9a441";ctx.fillRect(0,70,VW,1);ctx.fillRect(0,109,VW,1);
     ctx.fillStyle="#f3d07c";ctx.font="10px Silkscreen,monospace";const t=L.title;ctx.fillText(t,Math.round(VW/2-ctx.measureText(t).width/2),88);
-    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.siege?"SIEGE: SURVIVE THREE WAVES":L.boss?(L.boss.kind==="warden"?"DEFEAT THE WARDEN":"DEFEAT THE CROUPIER")+" · CRACK THE VAULT":L.ambush?"AMBUSH! A RIVAL AGENT GUARDS THE EXIT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
+    ctx.fillStyle="#c7b2b3";ctx.font="6px Silkscreen,monospace";const OS={ghost:"BONUS: NEVER TRIP THE ALARM",pacifist:"BONUS: NO TAKEDOWNS",speed:"BONUS: BEAT PAR "+Math.floor(L.par/60)+":"+String(L.par%60).padStart(2,"0"),collector:"BONUS: BAG 75% OF CHIPS",briefcase:"BONUS: FIND THE BRIEFCASE"};const s=L.tunnel?"TUNNEL: NO DOUBLE JUMP":L.chase?"CHASE: OUTRUN THE SHUTTER":L.siege?"SIEGE: SURVIVE THREE WAVES":L.boss?(L.boss.kind==="warden"?"DEFEAT THE WARDEN":"DEFEAT THE CROUPIER")+" · CRACK THE VAULT":L.ambush?"AMBUSH! A RIVAL AGENT GUARDS THE EXIT":L.agent?"RAID: DEFEAT THE AGENT AT THE EXIT":OS[L.obj]||"REACH THE EXIT";ctx.fillText(s,Math.round(VW/2-ctx.measureText(s).width/2),101);ctx.globalAlpha=1}
 }
 function croupierSprite(f,rage,sw){
   return mkSprite("cq"+f+rage+sw,24,35,R0=>{

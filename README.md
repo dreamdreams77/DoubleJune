@@ -141,6 +141,8 @@ About half of the unclaimed hexes are a special **mission type**, shown as a tag
 | Type | What it is | Bonus |
 |---|---|---|
 | Siege | A short flat arena. Three waves of guards (goons, armored goons, turrets and snipers as threat rises) arrive as you reach each trigger, and the exit stays locked until every guard is down. A raid or ambush makes the waves bigger and more armored | +15 chips |
+| Chase | A security shutter starts closing in from behind after a few seconds and speeds up with threat. If it catches you it costs a heart and drops back. The level has no moving platforms, fewer lasers and guards, and extra chips | +1 resource if it never catches you |
+| Tunnel | A low-ceiling corridor packed with lasers and turrets. No drones, cameras or springs, and the double-jump boots are switched off | +10 chips and +1 Intel |
 
 ### Complications
 
